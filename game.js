@@ -7,9 +7,6 @@ let currentRow = 0;
 let gameOver = false;
 let gameState = null;
 
-// Word validation cache
-const validationCache = JSON.parse(localStorage.getItem('wordCache')) || {};
-
 // Initialize game
 function init() {
     loadGameState();
@@ -141,14 +138,11 @@ function updateCurrentRow() {
     }
 }
 
-async function submitGuess() {
+function submitGuess() {
     const guess = currentGuess;
 
-    // Show loading state
-    showMessage('<span class="loading"></span>');
-
-    // Validate word using API
-    const isValid = await validateWord(guess);
+    // Validate word using local word list
+    const isValid = validateWord(guess);
 
     if (!isValid) {
         showMessage('Not a valid word!');
@@ -209,26 +203,9 @@ async function submitGuess() {
     saveGameState();
 }
 
-async function validateWord(word) {
-    // Check cache first
-    if (validationCache[word] !== undefined) {
-        return validationCache[word];
-    }
-
-    try {
-        const response = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word.toLowerCase()}`);
-        const isValid = response.ok;
-
-        // Cache the result
-        validationCache[word] = isValid;
-        localStorage.setItem('wordCache', JSON.stringify(validationCache));
-
-        return isValid;
-    } catch (error) {
-        console.error('Validation error:', error);
-        // If API fails, be lenient and accept the word
-        return true;
-    }
+function validateWord(word) {
+    // Check against local word list (no API needed)
+    return VALID_WORDS.has(word);
 }
 
 function checkGuess(guess) {

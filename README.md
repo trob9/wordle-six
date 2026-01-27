@@ -5,7 +5,7 @@ A daily 6-letter word puzzle game inspired by Wordle.
 ## Features
 
 - **Daily Challenge**: New word every day at midnight, same for everyone
-- **Smart Validation**: Uses dictionaryapi.dev to validate all guesses
+- **Offline Ready**: Local word list for instant validation, no API needed
 - **Mobile Optimized**: Fully responsive with touch-friendly controls
 - **Progressive Web App**: Install on mobile for app-like experience
 - **Stats Tracking**: Win rate, streaks, and guess distribution
@@ -19,9 +19,9 @@ A daily 6-letter word puzzle game inspired by Wordle.
 - No server needed - fully static and client-side
 
 ### Word Validation
-- Real-time validation using Free Dictionary API
-- Results cached in localStorage to minimize API calls
-- Accepts any valid 6-letter English word for guesses
+- Local word list with ~5,700 valid 6-letter words
+- Instant validation with no network requests
+- Works fully offline
 - Daily words selected from curated non-plural list
 
 ### Mobile First
@@ -34,12 +34,12 @@ A daily 6-letter word puzzle game inspired by Wordle.
 
 - Pure HTML/CSS/JavaScript
 - No build process or dependencies
-- Dictionary API for validation
+- Fully offline capable
 - localStorage for state management
 
 ## Deployment
 
-Automatically deploys to https://wordle-six.tomtom.fyi via VibeDeploy when pushed to GitHub.
+Hosted at https://wordle-six.tomtom.fyi via VibeDeploy.
 
 ---
 
