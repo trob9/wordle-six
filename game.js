@@ -208,6 +208,14 @@ async function validateWord(word) {
         return validationCache[word];
     }
 
+    // Fast local check against dwordly word list
+    if (VALID_WORDS.has(word)) {
+        validationCache[word] = true;
+        localStorage.setItem('wordCache', JSON.stringify(validationCache));
+        return true;
+    }
+
+    // Not in local list - fallback to dictionary API for obscure words
     try {
         const response = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word.toLowerCase()}`);
         const isValid = response.ok;
@@ -219,8 +227,8 @@ async function validateWord(word) {
         return isValid;
     } catch (error) {
         console.error('Validation error:', error);
-        // If API fails, be lenient and accept the word
-        return true;
+        // If API fails, reject since it wasn't in local list either
+        return false;
     }
 }
 
