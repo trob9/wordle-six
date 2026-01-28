@@ -1,16 +1,17 @@
 const WORD_LENGTH = 6;
 const MAX_GUESSES = 6;
 
+let targetWord = '';
 let currentGuess = '';
 let currentRow = 0;
 let gameOver = false;
 let gameState = null;
 
-// Initialize game
-async function init() {
-    // Wait for word decryption to complete
-    await WordGame.ready();
+// Word validation cache
+const validationCache = JSON.parse(localStorage.getItem('wordCache')) || {};
 
+// Initialize game
+function init() {
     loadGameState();
     createBoard();
     attachKeyboard();
@@ -19,16 +20,12 @@ async function init() {
     // Check if we need a new game (new day)
     const today = getDateString();
     if (!gameState || gameState.date !== today) {
-        await startNewGame();
+        startNewGame();
     } else {
         // Restore existing game
+        targetWord = getTodaysWord();
         currentRow = gameState.guesses.length;
         gameOver = gameState.gameOver;
-
-        // Restore game over state in WordGame module
-        if (gameOver) {
-            WordGame.setGameOver();
-        }
 
         // Restore board
         gameState.guesses.forEach((guess, i) => {
@@ -37,16 +34,16 @@ async function init() {
 
         // Restore keyboard
         gameState.guesses.forEach(guess => {
-            const result = WordGame.getLetterFeedback(guess);
+            const result = checkGuess(guess);
             updateKeyboard(guess, result);
         });
 
         if (gameOver) {
             if (gameState.won) {
-                showMessage('You already won today!');
+                showMessage('🎉 You already won today!');
                 showShareButton();
             } else {
-                showMessage(`Today's word was ${WordGame.revealWord()}`);
+                showMessage(`Today's word was ${targetWord}`);
             }
         }
     }
@@ -56,8 +53,8 @@ async function init() {
     setInterval(updateTimer, 1000);
 }
 
-async function startNewGame() {
-    await WordGame.reset();
+function startNewGame() {
+    targetWord = getTodaysWord();
     currentGuess = '';
     currentRow = 0;
     gameOver = false;
@@ -76,7 +73,7 @@ async function startNewGame() {
 
 function createBoard() {
     const board = document.getElementById('board');
-    board.textContent = '';
+    board.innerHTML = '';
 
     for (let i = 0; i < MAX_GUESSES; i++) {
         const row = document.createElement('div');
@@ -95,7 +92,7 @@ function createBoard() {
 }
 
 function restoreGuess(rowIndex, word) {
-    const result = WordGame.getLetterFeedback(word);
+    const result = checkGuess(word);
     for (let i = 0; i < WORD_LENGTH; i++) {
         const tile = document.getElementById(`tile-${rowIndex}-${i}`);
         tile.textContent = word[i];
@@ -147,7 +144,10 @@ function updateCurrentRow() {
 async function submitGuess() {
     const guess = currentGuess;
 
-    // Validate word using dictionary API
+    // Show loading state
+    showMessage('<span class="loading"></span>');
+
+    // Validate word using API
     const isValid = await validateWord(guess);
 
     if (!isValid) {
@@ -159,18 +159,13 @@ async function submitGuess() {
     // Save guess
     gameState.guesses.push(guess);
 
-    const result = WordGame.getLetterFeedback(guess);
-    const isWin = WordGame.checkWin(guess);
-
-    // Save the current row before it gets incremented
-    const winningRow = currentRow;
+    const result = checkGuess(guess);
 
     // Animate tiles
     for (let i = 0; i < WORD_LENGTH; i++) {
         const tile = document.getElementById(`tile-${currentRow}-${i}`);
         setTimeout(() => {
             tile.className = `tile ${result[i]}`;
-            tile.textContent = guess[i];
         }, i * 200);
     }
 
@@ -180,28 +175,25 @@ async function submitGuess() {
     }, WORD_LENGTH * 200);
 
     // Check win/lose
-    if (isWin) {
+    if (guess === targetWord) {
         setTimeout(() => {
             gameOver = true;
             gameState.gameOver = true;
             gameState.won = true;
-            WordGame.setGameOver();
             saveGameState();
-            updateStats(true, winningRow + 1);
-            showMessage('Congratulations!');
-            bounceRow(winningRow);
+            updateStats(true, currentRow + 1);
+            showMessage('🎉 Congratulations!');
+            bounceRow();
             showShareButton();
-            showWinModal(winningRow + 1);
         }, WORD_LENGTH * 200 + 500);
     } else if (currentRow === MAX_GUESSES - 1) {
         setTimeout(() => {
             gameOver = true;
             gameState.gameOver = true;
             gameState.won = false;
-            WordGame.setGameOver();
             saveGameState();
             updateStats(false);
-            showMessage(`The word was ${WordGame.revealWord()}`);
+            showMessage(`The word was ${targetWord}`);
         }, WORD_LENGTH * 200 + 500);
     }
 
@@ -209,9 +201,6 @@ async function submitGuess() {
     currentGuess = '';
     saveGameState();
 }
-
-// Word validation cache
-const validationCache = JSON.parse(localStorage.getItem('wordCache')) || {};
 
 async function validateWord(word) {
     // Check cache first
@@ -233,6 +222,33 @@ async function validateWord(word) {
         // If API fails, be lenient and accept the word
         return true;
     }
+}
+
+function checkGuess(guess) {
+    const result = Array(WORD_LENGTH).fill('absent');
+    const targetLetters = targetWord.split('');
+    const guessLetters = guess.split('');
+
+    // First pass: mark correct letters
+    for (let i = 0; i < WORD_LENGTH; i++) {
+        if (guessLetters[i] === targetLetters[i]) {
+            result[i] = 'correct';
+            targetLetters[i] = null;
+        }
+    }
+
+    // Second pass: mark present letters
+    for (let i = 0; i < WORD_LENGTH; i++) {
+        if (result[i] === 'correct') continue;
+
+        const index = targetLetters.indexOf(guessLetters[i]);
+        if (index !== -1) {
+            result[i] = 'present';
+            targetLetters[index] = null;
+        }
+    }
+
+    return result;
 }
 
 function updateKeyboard(guess, result) {
@@ -265,28 +281,21 @@ function shakeRow() {
     setTimeout(() => row.classList.remove('shake'), 500);
 }
 
-function bounceRow(rowIndex) {
-    const row = document.querySelector(`[data-row="${rowIndex}"]`);
+function bounceRow() {
+    const row = document.querySelector(`[data-row="${currentRow}"]`);
     row.classList.add('bounce');
     setTimeout(() => row.classList.remove('bounce'), 600);
 }
 
 function showMessage(msg) {
     const messageEl = document.getElementById('message');
-    messageEl.textContent = msg;
+    messageEl.innerHTML = msg;
 
-    setTimeout(() => {
-        if (messageEl.textContent === msg) messageEl.textContent = '';
-    }, 3000);
-}
-
-function showWinModal(guessCount) {
-    const modal = document.getElementById('winModal');
-    const guessText = document.getElementById('winGuessCount');
-    guessText.textContent = guessCount;
-    setTimeout(() => {
-        modal.classList.add('show');
-    }, 1000);
+    if (!msg.includes('loading')) {
+        setTimeout(() => {
+            if (messageEl.innerHTML === msg) messageEl.innerHTML = '';
+        }, 3000);
+    }
 }
 
 // Stats management
@@ -357,7 +366,7 @@ function updateStatsDisplay() {
 
     // Update distribution chart
     const chart = document.getElementById('distributionChart');
-    chart.textContent = '';
+    chart.innerHTML = '';
 
     const maxCount = Math.max(...stats.distribution, 1);
     stats.distribution.forEach((count, i) => {
@@ -394,55 +403,22 @@ function shareResults() {
 
     const guessCount = gameState.won ? gameState.guesses.length : 'X';
     const emoji = gameState.guesses.map(guess => {
-        const result = WordGame.getLetterFeedback(guess);
+        const result = checkGuess(guess);
         return result.map(r => {
-            if (r === 'correct') return '\u{1F7E9}';
-            if (r === 'present') return '\u{1F7E8}';
-            return '\u2B1B';
+            if (r === 'correct') return '🟩';
+            if (r === 'present') return '🟨';
+            return '⬛';
         }).join('');
     }).join('\n');
 
     const text = `Wordle Six ${guessCount}/${MAX_GUESSES}\n\n${emoji}\n\nhttps://wordle-six.tomtom.fyi`;
 
-    // Try native share first
     if (navigator.share) {
-        navigator.share({ text })
-            .then(() => showMessage('Shared successfully!'))
-            .catch(err => {
-                copyToClipboard(text);
-            });
+        navigator.share({ text });
     } else {
-        copyToClipboard(text);
-    }
-}
-
-function copyToClipboard(text) {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text)
-            .then(() => showMessage('Copied to clipboard!'))
-            .catch(err => {
-                console.error('Clipboard error:', err);
-                fallbackCopy(text);
-            });
-    } else {
-        fallbackCopy(text);
-    }
-}
-
-function fallbackCopy(text) {
-    const textarea = document.createElement('textarea');
-    textarea.value = text;
-    textarea.style.position = 'fixed';
-    textarea.style.opacity = '0';
-    document.body.appendChild(textarea);
-    textarea.select();
-    try {
-        document.execCommand('copy');
+        navigator.clipboard.writeText(text);
         showMessage('Copied to clipboard!');
-    } catch (err) {
-        showMessage('Copy failed - please share manually');
     }
-    document.body.removeChild(textarea);
 }
 
 // Modal functions
