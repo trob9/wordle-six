@@ -7,7 +7,10 @@ let gameOver = false;
 let gameState = null;
 
 // Initialize game
-function init() {
+async function init() {
+    // Wait for word decryption to complete
+    await WordGame.ready();
+
     loadGameState();
     createBoard();
     attachKeyboard();
@@ -16,7 +19,7 @@ function init() {
     // Check if we need a new game (new day)
     const today = getDateString();
     if (!gameState || gameState.date !== today) {
-        startNewGame();
+        await startNewGame();
     } else {
         // Restore existing game
         currentRow = gameState.guesses.length;
@@ -53,8 +56,8 @@ function init() {
     setInterval(updateTimer, 1000);
 }
 
-function startNewGame() {
-    WordGame.reset();
+async function startNewGame() {
+    await WordGame.reset();
     currentGuess = '';
     currentRow = 0;
     gameOver = false;
