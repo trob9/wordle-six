@@ -1,7 +1,6 @@
 const WORD_LENGTH = 6;
 const MAX_GUESSES = 6;
 
-let targetWord = '';
 let currentGuess = '';
 let currentRow = 0;
 let gameOver = false;
@@ -20,9 +19,13 @@ function init() {
         startNewGame();
     } else {
         // Restore existing game
-        targetWord = getTodaysWord();
         currentRow = gameState.guesses.length;
         gameOver = gameState.gameOver;
+
+        // Restore game over state in WordGame module
+        if (gameOver) {
+            WordGame.setGameOver();
+        }
 
         // Restore board
         gameState.guesses.forEach((guess, i) => {
@@ -31,16 +34,16 @@ function init() {
 
         // Restore keyboard
         gameState.guesses.forEach(guess => {
-            const result = checkGuess(guess);
+            const result = WordGame.getLetterFeedback(guess);
             updateKeyboard(guess, result);
         });
 
         if (gameOver) {
             if (gameState.won) {
-                showMessage('🎉 You already won today!');
+                showMessage('You already won today!');
                 showShareButton();
             } else {
-                showMessage(`Today's word was ${targetWord}`);
+                showMessage(`Today's word was ${WordGame.revealWord()}`);
             }
         }
     }
@@ -51,7 +54,7 @@ function init() {
 }
 
 function startNewGame() {
-    targetWord = getTodaysWord();
+    WordGame.reset();
     currentGuess = '';
     currentRow = 0;
     gameOver = false;
@@ -70,7 +73,7 @@ function startNewGame() {
 
 function createBoard() {
     const board = document.getElementById('board');
-    board.innerHTML = '';
+    board.textContent = '';
 
     for (let i = 0; i < MAX_GUESSES; i++) {
         const row = document.createElement('div');
@@ -89,7 +92,7 @@ function createBoard() {
 }
 
 function restoreGuess(rowIndex, word) {
-    const result = checkGuess(word);
+    const result = WordGame.getLetterFeedback(word);
     for (let i = 0; i < WORD_LENGTH; i++) {
         const tile = document.getElementById(`tile-${rowIndex}-${i}`);
         tile.textContent = word[i];
@@ -153,17 +156,17 @@ function submitGuess() {
     // Save guess
     gameState.guesses.push(guess);
 
-    const result = checkGuess(guess);
+    const result = WordGame.getLetterFeedback(guess);
+    const isWin = WordGame.checkWin(guess);
 
-    // FIX: Save the current row before it gets incremented
+    // Save the current row before it gets incremented
     const winningRow = currentRow;
 
-    // Animate tiles - FIX: Preserve text content during animation
+    // Animate tiles
     for (let i = 0; i < WORD_LENGTH; i++) {
         const tile = document.getElementById(`tile-${currentRow}-${i}`);
         setTimeout(() => {
             tile.className = `tile ${result[i]}`;
-            // Ensure text stays visible
             tile.textContent = guess[i];
         }, i * 200);
     }
@@ -173,18 +176,18 @@ function submitGuess() {
         updateKeyboard(guess, result);
     }, WORD_LENGTH * 200);
 
-    // Check win/lose - FIX: Use saved winningRow instead of currentRow
-    if (guess === targetWord) {
+    // Check win/lose
+    if (isWin) {
         setTimeout(() => {
             gameOver = true;
             gameState.gameOver = true;
             gameState.won = true;
+            WordGame.setGameOver();
             saveGameState();
-            updateStats(true, winningRow + 1); // FIX: Use winningRow
-            showMessage('🎉 Congratulations!');
-            bounceRow(winningRow); // FIX: Use winningRow
+            updateStats(true, winningRow + 1);
+            showMessage('Congratulations!');
+            bounceRow(winningRow);
             showShareButton();
-            // NEW: Show win modal
             showWinModal(winningRow + 1);
         }, WORD_LENGTH * 200 + 500);
     } else if (currentRow === MAX_GUESSES - 1) {
@@ -192,9 +195,10 @@ function submitGuess() {
             gameOver = true;
             gameState.gameOver = true;
             gameState.won = false;
+            WordGame.setGameOver();
             saveGameState();
             updateStats(false);
-            showMessage(`The word was ${targetWord}`);
+            showMessage(`The word was ${WordGame.revealWord()}`);
         }, WORD_LENGTH * 200 + 500);
     }
 
@@ -206,33 +210,6 @@ function submitGuess() {
 function validateWord(word) {
     // Check against local word list (no API needed)
     return VALID_WORDS.has(word);
-}
-
-function checkGuess(guess) {
-    const result = Array(WORD_LENGTH).fill('absent');
-    const targetLetters = targetWord.split('');
-    const guessLetters = guess.split('');
-
-    // First pass: mark correct letters
-    for (let i = 0; i < WORD_LENGTH; i++) {
-        if (guessLetters[i] === targetLetters[i]) {
-            result[i] = 'correct';
-            targetLetters[i] = null;
-        }
-    }
-
-    // Second pass: mark present letters
-    for (let i = 0; i < WORD_LENGTH; i++) {
-        if (result[i] === 'correct') continue;
-
-        const index = targetLetters.indexOf(guessLetters[i]);
-        if (index !== -1) {
-            result[i] = 'present';
-            targetLetters[index] = null;
-        }
-    }
-
-    return result;
 }
 
 function updateKeyboard(guess, result) {
@@ -266,7 +243,6 @@ function shakeRow() {
 }
 
 function bounceRow(rowIndex) {
-    // FIX: Accept rowIndex parameter instead of using currentRow
     const row = document.querySelector(`[data-row="${rowIndex}"]`);
     row.classList.add('bounce');
     setTimeout(() => row.classList.remove('bounce'), 600);
@@ -274,23 +250,20 @@ function bounceRow(rowIndex) {
 
 function showMessage(msg) {
     const messageEl = document.getElementById('message');
-    messageEl.innerHTML = msg;
+    messageEl.textContent = msg;
 
-    if (!msg.includes('loading')) {
-        setTimeout(() => {
-            if (messageEl.innerHTML === msg) messageEl.innerHTML = '';
-        }, 3000);
-    }
+    setTimeout(() => {
+        if (messageEl.textContent === msg) messageEl.textContent = '';
+    }, 3000);
 }
 
-// NEW: Show win modal
 function showWinModal(guessCount) {
     const modal = document.getElementById('winModal');
     const guessText = document.getElementById('winGuessCount');
     guessText.textContent = guessCount;
     setTimeout(() => {
         modal.classList.add('show');
-    }, 1000); // Show after 1 second
+    }, 1000);
 }
 
 // Stats management
@@ -361,7 +334,7 @@ function updateStatsDisplay() {
 
     // Update distribution chart
     const chart = document.getElementById('distributionChart');
-    chart.innerHTML = '';
+    chart.textContent = '';
 
     const maxCount = Math.max(...stats.distribution, 1);
     stats.distribution.forEach((count, i) => {
@@ -393,17 +366,16 @@ function showShareButton() {
     document.getElementById('shareSection').style.display = 'block';
 }
 
-// FIX: Improved share function with better error handling
 function shareResults() {
     if (!gameState || !gameState.gameOver) return;
 
     const guessCount = gameState.won ? gameState.guesses.length : 'X';
     const emoji = gameState.guesses.map(guess => {
-        const result = checkGuess(guess);
+        const result = WordGame.getLetterFeedback(guess);
         return result.map(r => {
-            if (r === 'correct') return '🟩';
-            if (r === 'present') return '🟨';
-            return '⬛';
+            if (r === 'correct') return '\u{1F7E9}';
+            if (r === 'present') return '\u{1F7E8}';
+            return '\u2B1B';
         }).join('');
     }).join('\n');
 
@@ -414,23 +386,19 @@ function shareResults() {
         navigator.share({ text })
             .then(() => showMessage('Shared successfully!'))
             .catch(err => {
-                // User cancelled or error - try clipboard
                 copyToClipboard(text);
             });
     } else {
-        // Fallback to clipboard
         copyToClipboard(text);
     }
 }
 
-// FIX: Better clipboard handling
 function copyToClipboard(text) {
     if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(text)
-            .then(() => showMessage('✓ Copied to clipboard!'))
+            .then(() => showMessage('Copied to clipboard!'))
             .catch(err => {
                 console.error('Clipboard error:', err);
-                // Last resort: create textarea
                 fallbackCopy(text);
             });
     } else {
@@ -438,7 +406,6 @@ function copyToClipboard(text) {
     }
 }
 
-// FIX: Fallback copy method
 function fallbackCopy(text) {
     const textarea = document.createElement('textarea');
     textarea.value = text;
@@ -448,9 +415,9 @@ function fallbackCopy(text) {
     textarea.select();
     try {
         document.execCommand('copy');
-        showMessage('✓ Copied to clipboard!');
+        showMessage('Copied to clipboard!');
     } catch (err) {
-        showMessage('❌ Copy failed - please share manually');
+        showMessage('Copy failed - please share manually');
     }
     document.body.removeChild(textarea);
 }
