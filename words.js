@@ -121,6 +121,10 @@ function getDailyWordIndex() {
 
 // Get today's word
 function getTodaysWord() {
+    // Manual override for 2026-01-29
+    if (getDateString() === '2026-01-29') {
+        return 'LAYOFF';
+    }
     const index = getDailyWordIndex();
     return DAILY_WORDS[index];
 }
