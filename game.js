@@ -429,7 +429,7 @@ function shareResults(button) {
     if (!gameState || !gameState.gameOver) return;
 
     const guessCount = gameState.won ? gameState.guesses.length : 'X';
-    const hardIndicator = hardMode ? '*' : '';
+    const hardIndicator = hardMode ? ' (Hard Mode)' : '';
     const emoji = gameState.guesses.map(guess => {
         const result = checkGuess(guess);
         return result.map(r => {
@@ -487,18 +487,51 @@ function checkHardMode(guess) {
         return { valid: true };
     }
 
-    // Gather all hints from previous guesses
+    // Build up known constraints from all previous guesses
+    const requiredPositions = {}; // position -> letter (green)
+    const requiredLetters = new Set(); // must be in guess (yellow)
+    const absentLetters = new Set(); // confirmed not in word
+
     for (const prev of gameState.guesses) {
         const result = checkGuess(prev);
+        const prevLetters = prev.split('');
+
+        // First collect greens and yellows
         for (let i = 0; i < WORD_LENGTH; i++) {
-            if (result[i] === 'correct' && guess[i] !== prev[i]) {
-                return { valid: false, message: `Position ${i + 1} must be ${prev[i]}` };
+            if (result[i] === 'correct') {
+                requiredPositions[i] = prevLetters[i];
+                requiredLetters.add(prevLetters[i]);
+            } else if (result[i] === 'present') {
+                requiredLetters.add(prevLetters[i]);
             }
         }
+
+        // Then collect absent letters (only if not also green/yellow elsewhere)
         for (let i = 0; i < WORD_LENGTH; i++) {
-            if (result[i] === 'present' && !guess.includes(prev[i])) {
-                return { valid: false, message: `Guess must contain ${prev[i]}` };
+            if (result[i] === 'absent' && !requiredLetters.has(prevLetters[i])) {
+                absentLetters.add(prevLetters[i]);
             }
+        }
+    }
+
+    // Check green positions
+    for (const [pos, letter] of Object.entries(requiredPositions)) {
+        if (guess[pos] !== letter) {
+            return { valid: false, message: `Position ${parseInt(pos) + 1} must be ${letter}` };
+        }
+    }
+
+    // Check yellow letters are present
+    for (const letter of requiredLetters) {
+        if (!guess.includes(letter)) {
+            return { valid: false, message: `Guess must contain ${letter}` };
+        }
+    }
+
+    // Check absent letters are not used
+    for (let i = 0; i < WORD_LENGTH; i++) {
+        if (absentLetters.has(guess[i])) {
+            return { valid: false, message: `${guess[i]} is not in the word` };
         }
     }
 
