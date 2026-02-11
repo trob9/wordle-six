@@ -64,8 +64,7 @@ graph TB
 | Database | SQLite with WAL mode (`github.com/mattn/go-sqlite3`) |
 | Auth | OAuth2 (manual flow) + JWT sessions (`github.com/golang-jwt/jwt/v5`) |
 | Frontend | Vanilla HTML/CSS/JavaScript (no framework, no build step) |
-| Fonts | Cormorant Garamond + DM Sans (Google Fonts) |
-| Deployment | Docker multi-stage build via vibe-deploy |
+| Deployment | Docker multi-stage build |
 
 ## Database Schema
 
@@ -177,7 +176,7 @@ sequenceDiagram
     B->>S: POST /api/result (leaderboard)
 ```
 
-Logged-out users fall back to localStorage only. Signing in merges server state (server wins when it has more guesses).
+Logged-out users fall back to localStorage only. For logged-in users, server state is authoritative and replaces localStorage on page load.
 
 ## Word Library
 
@@ -243,7 +242,7 @@ fetch('/api/admin/ban',{method:'POST',headers:{'Content-Type':'application/json'
 
 ## Deployment
 
-Dockerized multi-stage build (Go 1.23-alpine builder, alpine 3.20 runtime). Deployed via vibe-deploy webhook on push to `main`. SQLite database persisted in a Docker volume (`wordle-six-data:/data`).
+Dockerized multi-stage build (Go 1.23-alpine builder, alpine 3.20 runtime). SQLite database persisted in a Docker volume (`wordle-six-data:/data`).
 
 ```
 wordle-six.tomtom.fyi → Cloudflare Tunnel → Caddy → wordle-six:8080
