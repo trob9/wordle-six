@@ -8,8 +8,6 @@ let gameOver = false;
 let gameState = null;
 let hardMode = false;
 
-// Word validation cache
-const validationCache = JSON.parse(localStorage.getItem('wordCache')) || {};
 
 // Initialize game
 function init() {
@@ -146,16 +144,11 @@ function updateCurrentRow() {
     }
 }
 
-async function submitGuess() {
+function submitGuess() {
     const guess = currentGuess;
 
-    // Show loading state
-    showMessage('<span class="loading"></span>');
-
-    // Validate word using API
-    const isValid = await validateWord(guess);
-
-    if (!isValid) {
+    // Validate word against local dictionary
+    if (!VALID_WORDS.has(guess)) {
         showMessage('Not a valid word!');
         shakeRow();
         return;
@@ -168,9 +161,6 @@ async function submitGuess() {
         shakeRow();
         return;
     }
-
-    // Clear loading message
-    showMessage('');
 
     // Track if a guess was made without hard mode
     if (!hardMode) {
@@ -225,37 +215,6 @@ async function submitGuess() {
     saveGameState();
 }
 
-async function validateWord(word) {
-    // Check cache first
-    if (validationCache[word] !== undefined) {
-        return validationCache[word];
-    }
-
-    // Fast local check against dwordly word list
-    if (VALID_WORDS.has(word)) {
-        validationCache[word] = true;
-        localStorage.setItem('wordCache', JSON.stringify(validationCache));
-        return true;
-    }
-
-    // Not in local list - fallback to dictionary API for obscure words
-    try {
-        const response = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word.toLowerCase()}`);
-        const isValid = response.ok;
-
-        // Only cache valid results - don't cache rejections in case of API issues
-        if (isValid) {
-            validationCache[word] = true;
-            localStorage.setItem('wordCache', JSON.stringify(validationCache));
-        }
-
-        return isValid;
-    } catch (error) {
-        console.error('Validation error:', error);
-        // If API fails, don't cache - allow retry
-        return false;
-    }
-}
 
 function checkGuess(guess) {
     const result = Array(WORD_LENGTH).fill('absent');
