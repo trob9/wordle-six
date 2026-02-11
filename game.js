@@ -515,6 +515,7 @@ function checkHardMode(guess) {
     const requiredPositions = {}; // position -> letter (green)
     const requiredLetters = new Set(); // must be in guess (yellow)
     const absentLetters = new Set(); // confirmed not in word
+    const excludedPositions = {}; // position -> Set of letters that can't be there (yellow)
 
     for (const prev of gameState.guesses) {
         const result = checkGuess(prev);
@@ -527,6 +528,9 @@ function checkHardMode(guess) {
                 requiredLetters.add(prevLetters[i]);
             } else if (result[i] === 'present') {
                 requiredLetters.add(prevLetters[i]);
+                // Letter is in the word but NOT at this position
+                if (!excludedPositions[i]) excludedPositions[i] = new Set();
+                excludedPositions[i].add(prevLetters[i]);
             }
         }
 
@@ -542,6 +546,13 @@ function checkHardMode(guess) {
     for (const [pos, letter] of Object.entries(requiredPositions)) {
         if (guess[pos] !== letter) {
             return { valid: false, message: `Position ${parseInt(pos) + 1} must be ${letter}` };
+        }
+    }
+
+    // Check yellow letters aren't in their excluded positions
+    for (const [pos, letters] of Object.entries(excludedPositions)) {
+        if (letters.has(guess[pos])) {
+            return { valid: false, message: `${guess[pos]} can't be in position ${parseInt(pos) + 1}` };
         }
     }
 
