@@ -28,6 +28,8 @@ func main() {
 	mux.HandleFunc("GET /api/user-stats", handleGetUserStats)
 	mux.HandleFunc("POST /api/user-stats", handleSaveUserStats)
 	mux.HandleFunc("POST /api/display-name", handleUpdateDisplayName)
+	mux.HandleFunc("POST /api/admin/ban", handleBanUser)
+	mux.HandleFunc("GET /api/admin/users", handleListUsers)
 
 	// Static files - serve from current directory
 	staticDir := "./static"

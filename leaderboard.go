@@ -47,6 +47,7 @@ func handleGetLeaderboard(w http.ResponseWriter, r *http.Request) {
 			SUM(CASE WHEN gr.won AND gr.hard_mode THEN 1 ELSE 0 END) AS hard_mode_wins
 		FROM users u
 		JOIN game_results gr ON gr.user_id = u.id
+		WHERE u.banned = FALSE
 		GROUP BY u.id
 		HAVING COUNT(*) >= 1
 		ORDER BY weighted_avg ASC, win_rate DESC, games_played DESC

@@ -1,10 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"log"
 	"net/http"
+	"regexp"
+	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 )
 
@@ -207,10 +211,44 @@ func handleSaveUserStats(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{"ok":true}`))
 }
 
+// Only allow alphanumeric, spaces, hyphens, underscores
+var validNamePattern = regexp.MustCompile(`^[\w\s\-]+$`)
+
+func sanitizeName(name string) string {
+	name = strings.TrimSpace(name)
+	// Collapse multiple spaces
+	name = regexp.MustCompile(`\s+`).ReplaceAllString(name, " ")
+	return name
+}
+
+func checkProfanity(text string) (bool, error) {
+	payload, _ := json.Marshal(map[string]string{"message": text})
+	client := &http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Post("https://vector.profanity.dev", "application/json", bytes.NewReader(payload))
+	if err != nil {
+		// If the API is down, allow the name (fail open)
+		log.Printf("Profanity API error: %v", err)
+		return false, nil
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		IsProfanity bool `json:"isProfanity"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return false, nil
+	}
+	return result.IsProfanity, nil
+}
+
 func handleUpdateDisplayName(w http.ResponseWriter, r *http.Request) {
 	user := getUserFromRequest(r)
 	if user == nil {
 		http.Error(w, "Not authenticated", http.StatusUnauthorized)
+		return
+	}
+	if user.Banned {
+		http.Error(w, "Account is banned", http.StatusForbidden)
 		return
 	}
 
@@ -222,9 +260,21 @@ func handleUpdateDisplayName(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	name := strings.TrimSpace(body.Name)
-	if name == "" || utf8.RuneCountInString(name) > 20 {
+	name := sanitizeName(body.Name)
+	nameLen := utf8.RuneCountInString(name)
+	if name == "" || nameLen < 1 || nameLen > 20 {
 		http.Error(w, "Name must be 1-20 characters", http.StatusBadRequest)
+		return
+	}
+
+	if !validNamePattern.MatchString(name) {
+		http.Error(w, "Name can only contain letters, numbers, spaces, hyphens, and underscores", http.StatusBadRequest)
+		return
+	}
+
+	isProfane, err := checkProfanity(name)
+	if err == nil && isProfane {
+		http.Error(w, "That name is not allowed", http.StatusBadRequest)
 		return
 	}
 
@@ -235,4 +285,86 @@ func handleUpdateDisplayName(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(`{"ok":true}`))
+}
+
+// Admin: ban/unban a user. Only user ID 1 (first registered user) can do this.
+func handleBanUser(w http.ResponseWriter, r *http.Request) {
+	admin := getUserFromRequest(r)
+	if admin == nil || admin.ID != 1 {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
+	var body struct {
+		UserID int64 `json:"user_id"`
+		Ban    bool  `json:"ban"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if body.UserID == admin.ID {
+		http.Error(w, "Cannot ban yourself", http.StatusBadRequest)
+		return
+	}
+
+	var err error
+	if body.Ban {
+		err = banUser(body.UserID)
+	} else {
+		err = unbanUser(body.UserID)
+	}
+	if err != nil {
+		http.Error(w, "Failed to update ban status", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(`{"ok":true}`))
+}
+
+func handleListUsers(w http.ResponseWriter, r *http.Request) {
+	admin := getUserFromRequest(r)
+	if admin == nil || admin.ID != 1 {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
+	limitStr := r.URL.Query().Get("limit")
+	limit := 100
+	if limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 500 {
+			limit = l
+		}
+	}
+
+	rows, err := db.Query("SELECT id, provider, display_name, COALESCE(custom_name, ''), COALESCE(avatar_url, ''), banned FROM users ORDER BY id LIMIT ?", limit)
+	if err != nil {
+		http.Error(w, "Failed to query users", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	type userEntry struct {
+		ID          int64  `json:"id"`
+		Provider    string `json:"provider"`
+		DisplayName string `json:"display_name"`
+		CustomName  string `json:"custom_name,omitempty"`
+		AvatarURL   string `json:"avatar_url,omitempty"`
+		Banned      bool   `json:"banned"`
+	}
+
+	var users []userEntry
+	for rows.Next() {
+		var u userEntry
+		rows.Scan(&u.ID, &u.Provider, &u.DisplayName, &u.CustomName, &u.AvatarURL, &u.Banned)
+		users = append(users, u)
+	}
+	if users == nil {
+		users = []userEntry{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{"users": users})
 }
