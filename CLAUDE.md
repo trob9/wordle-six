@@ -9,7 +9,7 @@ Wordle Six is a daily 6-letter word puzzle game. Go backend + vanilla JS fronten
 
 ## File Map
 
-### Backend (Go 1.23)
+### Backend (Go 1.25)
 
 | File | Purpose |
 |------|---------|
@@ -19,7 +19,7 @@ Wordle Six is a daily 6-letter word puzzle game. Go backend + vanilla JS fronten
 | `game-state.go` | Game progress sync (save/load guesses), user stats sync, display name update. |
 | `leaderboard.go` | Leaderboard query (weighted avg with hard mode bonus), game result submission, streak computation. |
 | `go.mod` | Dependencies: `go-sqlite3`, `golang-jwt/jwt/v5` |
-| `Dockerfile` | Multi-stage: `golang:1.23-alpine` builder → `alpine:3.20` runtime. Static files copied to `/app/static/`. |
+| `Dockerfile` | Multi-stage: `golang:1.25-alpine` builder → `alpine:3.20` runtime. Static files copied to `/app/static/`. |
 
 ### Frontend (Vanilla JS, no build step)
 
