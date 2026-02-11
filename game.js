@@ -67,7 +67,8 @@ function startNewGame() {
         date: getDateString(),
         guesses: [],
         gameOver: false,
-        won: false
+        won: false,
+        usedNonHardMode: false
     };
 
     saveGameState();
@@ -170,6 +171,11 @@ async function submitGuess() {
 
     // Clear loading message
     showMessage('');
+
+    // Track if a guess was made without hard mode
+    if (!hardMode) {
+        gameState.usedNonHardMode = true;
+    }
 
     // Save guess
     gameState.guesses.push(guess);
@@ -469,7 +475,7 @@ function loadHardMode() {
 }
 
 function toggleHardMode() {
-    if (gameState && gameState.guesses.length > 0 && !gameOver) {
+    if (isHardModeLocked()) {
         return;
     }
     hardMode = !hardMode;
@@ -480,10 +486,15 @@ function toggleHardMode() {
     }
 }
 
+function isHardModeLocked() {
+    // Lock hard mode if any guess was made with it off
+    return gameState && gameState.usedNonHardMode && !gameOver;
+}
+
 function updateHardModeUI() {
     const toggle = document.getElementById('hardModeToggle');
     const warning = document.getElementById('hardModeWarning');
-    const locked = gameState && gameState.guesses.length > 0 && !gameOver;
+    const locked = isHardModeLocked();
 
     if (toggle) {
         toggle.disabled = locked;
