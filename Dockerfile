@@ -17,7 +17,7 @@ WORKDIR /app
 COPY --from=builder /app/wordle-six .
 
 # Copy static frontend files
-COPY index.html manifest.json ./static/
+COPY index.html terms.html privacy.html manifest.json ./static/
 COPY *.js ./static/
 COPY icon.svg icon-192.png icon-512.png og-preview.png ./static/
 
