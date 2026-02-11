@@ -1226,9 +1226,12 @@
                     <div class="setting-name">Display Name</div>
                     <div class="setting-desc">Shown on the leaderboard</div>
                 </div>
-                <div class="name-input-group">
-                    <input type="text" id="displayNameInput" class="name-input" maxlength="20" placeholder="Enter name">
-                    <button class="name-save-btn" id="displayNameSave" onclick="saveDisplayName()">Save</button>
+                <div style="display: flex; flex-direction: column; align-items: flex-end;">
+                    <p id="displayNameError" style="display: none; font-size: 0.75rem; color: #c45; margin: 0 0 0.35rem 0; text-align: right;"></p>
+                    <div class="name-input-group">
+                        <input type="text" id="displayNameInput" class="name-input" maxlength="20" placeholder="Enter name">
+                        <button class="name-save-btn" id="displayNameSave" onclick="saveDisplayName()">Save</button>
+                    </div>
                 </div>
             </div>
             <p id="hardModeWarning" style="display: none; margin: 0 0 0.75rem; padding: 0.5rem 0.75rem; background: var(--bg-secondary, #f0ede6); border-radius: 0.25rem; font-size: 0.8rem; color: var(--text-muted, #787c7e);"></p>
