@@ -469,31 +469,29 @@ function loadHardMode() {
 }
 
 function toggleHardMode() {
-    const toggle = document.getElementById('hardModeToggle');
-    const desc = document.getElementById('hardModeDesc');
-
-    // Don't allow toggling mid-game if guesses have been made
     if (gameState && gameState.guesses.length > 0 && !gameOver) {
-        // Brief flash of the toggled state then snap back
-        if (toggle) {
-            toggle.classList.toggle('active');
-            setTimeout(() => toggle.classList.toggle('active'), 150);
-        }
-        // Show error inline in the modal
-        if (desc) {
-            desc.textContent = 'Cannot change mid-game!';
-            desc.style.color = 'var(--color-absent, #787c7e)';
-            setTimeout(() => {
-                desc.textContent = 'Revealed hints must be used in subsequent guesses';
-                desc.style.color = '';
-            }, 2000);
-        }
         return;
     }
     hardMode = !hardMode;
     localStorage.setItem('hardMode', hardMode);
+    const toggle = document.getElementById('hardModeToggle');
     if (toggle) {
         toggle.classList.toggle('active', hardMode);
+    }
+}
+
+function updateHardModeUI() {
+    const toggle = document.getElementById('hardModeToggle');
+    const warning = document.getElementById('hardModeWarning');
+    const locked = gameState && gameState.guesses.length > 0 && !gameOver;
+
+    if (toggle) {
+        toggle.disabled = locked;
+        toggle.style.opacity = locked ? '0.4' : '';
+        toggle.style.cursor = locked ? 'not-allowed' : '';
+    }
+    if (warning) {
+        warning.style.display = locked ? 'block' : 'none';
     }
 }
 
@@ -554,6 +552,7 @@ function checkHardMode(guess) {
 }
 
 function showSettings() {
+    updateHardModeUI();
     document.getElementById('settingsModal').classList.add('show');
 }
 
