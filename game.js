@@ -469,14 +469,29 @@ function loadHardMode() {
 }
 
 function toggleHardMode() {
+    const toggle = document.getElementById('hardModeToggle');
+    const desc = document.getElementById('hardModeDesc');
+
     // Don't allow toggling mid-game if guesses have been made
     if (gameState && gameState.guesses.length > 0 && !gameOver) {
-        showMessage('Cannot change hard mode mid-game!');
+        // Brief flash of the toggled state then snap back
+        if (toggle) {
+            toggle.classList.toggle('active');
+            setTimeout(() => toggle.classList.toggle('active'), 150);
+        }
+        // Show error inline in the modal
+        if (desc) {
+            desc.textContent = 'Cannot change mid-game!';
+            desc.style.color = 'var(--color-absent, #787c7e)';
+            setTimeout(() => {
+                desc.textContent = 'Revealed hints must be used in subsequent guesses';
+                desc.style.color = '';
+            }, 2000);
+        }
         return;
     }
     hardMode = !hardMode;
     localStorage.setItem('hardMode', hardMode);
-    const toggle = document.getElementById('hardModeToggle');
     if (toggle) {
         toggle.classList.toggle('active', hardMode);
     }
