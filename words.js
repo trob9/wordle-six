@@ -104,27 +104,45 @@ const DAILY_WORDS = [
     'YOGURT', 'ZOMBIE', 'ZONING'
 ];
 
-// Simple seeded random number generator
-function seededRandom(seed) {
-    const x = Math.sin(seed++) * 10000;
-    return x - Math.floor(x);
+// Seeded RNG that advances its state via closure
+function createRNG(seed) {
+    return function() {
+        const x = Math.sin(seed++) * 10000;
+        return x - Math.floor(x);
+    };
+}
+
+// Fisher-Yates shuffle with seeded RNG
+function shuffleArray(array, seed) {
+    const rng = createRNG(seed);
+    const shuffled = [...array];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(rng() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
 }
 
 // Get deterministic word index based on date
+// Uses a shuffled permutation so every word is used exactly once
+// before any word repeats (~500-day cycle with no close repeats)
 function getDailyWordIndex() {
     const now = new Date();
     const start = new Date(2024, 0, 1); // Jan 1, 2024 as epoch
     const daysSinceStart = Math.floor((now - start) / (1000 * 60 * 60 * 24));
-    const seed = daysSinceStart + 12345; // Add constant to make it less predictable
-    return Math.floor(seededRandom(seed) * DAILY_WORDS.length);
+
+    const cycle = Math.floor(daysSinceStart / DAILY_WORDS.length);
+    const dayInCycle = daysSinceStart % DAILY_WORDS.length;
+
+    // Build index array and shuffle it (different shuffle each cycle)
+    const indices = Array.from({length: DAILY_WORDS.length}, (_, i) => i);
+    const shuffled = shuffleArray(indices, cycle * 77 + 12345);
+
+    return shuffled[dayInCycle];
 }
 
 // Get today's word
 function getTodaysWord() {
-    // Manual override for 2026-01-29 (local) / 2026-01-28 (UTC)
-    if (getDateString() === '2026-01-28' || getDateString() === '2026-01-29') {
-        return 'LAYOFF';
-    }
     const index = getDailyWordIndex();
     return DAILY_WORDS[index];
 }
