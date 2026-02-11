@@ -1,0 +1,6 @@
+.env
+*.db
+*.db-wal
+*.db-shm
+volumes.txt
+wordle-six

@@ -1,0 +1,5 @@
+.git
+README.md
+volumes.txt
+.env
+.dockerignore

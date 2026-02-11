@@ -27,7 +27,7 @@
     <link rel="manifest" href="manifest.json">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=DM+Sans:wght@400;500;600&display=block" rel="stylesheet">
     <style>
         :root {
             --bg-primary: #f7f5f0;
@@ -113,22 +113,25 @@
         }
 
         .header-top {
-            display: flex;
-            justify-content: space-between;
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
             align-items: center;
             margin-bottom: 0.5rem;
         }
 
         .logo {
-            font-family: 'Cormorant Garamond', Georgia, serif;
+            font-family: Georgia, serif;
             font-size: clamp(1.75rem, 6vw, 2.25rem);
-            font-weight: 600;
+            font-weight: bold;
             letter-spacing: -0.02em;
             color: var(--text-primary);
+            white-space: nowrap;
+            text-align: center;
+            padding: 0 2rem;
         }
 
         .logo span {
-            font-weight: 400;
+            font-weight: normal;
             color: var(--text-secondary);
         }
 
@@ -144,11 +147,11 @@
             background: transparent;
             border: 1px solid var(--border-color);
             color: var(--text-secondary);
-            width: 2.25rem;
-            height: 2.25rem;
+            width: 1.875rem;
+            height: 1.875rem;
             border-radius: 0.375rem;
             cursor: pointer;
-            font-size: 0.85rem;
+            font-size: 0.75rem;
             font-weight: 600;
             display: flex;
             align-items: center;
@@ -168,7 +171,11 @@
 
         .header-actions {
             display: flex;
-            gap: 0.5rem;
+            gap: 0.3rem;
+        }
+
+        .header-actions:first-child {
+            justify-content: flex-end;
         }
 
         /* Settings */
@@ -266,9 +273,9 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-family: 'Cormorant Garamond', Georgia, serif;
+            font-family: Georgia, serif;
             font-size: clamp(1.5rem, 5vw, 1.75rem);
-            font-weight: 700;
+            font-weight: bold;
             text-transform: uppercase;
             transition: all 0.1s ease;
             user-select: none;
@@ -512,6 +519,67 @@
             color: var(--text-muted);
         }
 
+        .name-input-group {
+            display: flex;
+            gap: 0.375rem;
+            align-items: center;
+            margin-left: 1rem;
+            flex-shrink: 0;
+        }
+
+        .name-input {
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.85rem;
+            padding: 0.4rem 0.6rem;
+            border: 1px solid var(--border-color);
+            border-radius: 0.25rem;
+            background: var(--bg-tile);
+            color: var(--text-primary);
+            width: 8rem;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+
+        .name-input:focus {
+            border-color: var(--border-strong);
+        }
+
+        .name-input-lg {
+            width: 100%;
+            max-width: 16rem;
+            margin: 0 auto;
+            display: block;
+            padding: 0.625rem 0.75rem;
+            font-size: 1rem;
+            text-align: center;
+        }
+
+        .name-save-btn {
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 0.4rem 0.625rem;
+            border: 1px solid var(--border-color);
+            border-radius: 0.25rem;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.15s;
+            white-space: nowrap;
+        }
+
+        .name-save-btn:hover {
+            background: var(--key-hover);
+            border-color: var(--border-strong);
+        }
+
+        .stat-hard-sub {
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.65rem;
+            font-weight: 500;
+            color: var(--present);
+        }
+
         .distribution {
             margin-top: 1.5rem;
         }
@@ -674,6 +742,204 @@
             display: inline-block;
         }
 
+        /* Auth */
+        .auth-area {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .auth-user {
+            display: flex;
+            align-items: center;
+            gap: 0.375rem;
+        }
+
+        .auth-avatar {
+            width: 1.75rem;
+            height: 1.75rem;
+            border-radius: 50%;
+            border: 1px solid var(--border-color);
+        }
+
+        .auth-name {
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            max-width: 5rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .auth-dropdown {
+            position: relative;
+        }
+
+        .auth-dropdown-menu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 0.5rem;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 0.375rem;
+            box-shadow: var(--shadow-md);
+            z-index: 100;
+            min-width: 10rem;
+            padding: 0.375rem;
+        }
+
+        .auth-dropdown-menu.show {
+            display: block;
+        }
+
+        .auth-dropdown-menu button {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            width: 100%;
+            padding: 0.5rem 0.75rem;
+            background: none;
+            border: none;
+            border-radius: 0.25rem;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.8rem;
+            color: var(--text-primary);
+            cursor: pointer;
+            text-align: left;
+        }
+
+        .auth-dropdown-menu button:hover {
+            background: var(--bg-secondary);
+        }
+
+        .auth-dropdown-menu .provider-icon {
+            width: 1rem;
+            height: 1rem;
+        }
+
+
+        /* Leaderboard */
+        .top-players {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            padding: 0.5rem 0;
+        }
+
+        .top-player {
+            display: flex;
+            align-items: center;
+            gap: 0.375rem;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .top-player-rank {
+            font-weight: 700;
+            font-family: 'Cormorant Garamond', Georgia, serif;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+
+        .top-player-rank.gold { color: #b8860b; }
+        .top-player-rank.silver { color: #808080; }
+        .top-player-rank.bronze { color: #a0522d; }
+
+        .top-player-avatar {
+            width: 1.25rem;
+            height: 1.25rem;
+            border-radius: 50%;
+        }
+
+        .top-player-name {
+            font-weight: 500;
+            max-width: 4rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .top-player-avg {
+            font-weight: 600;
+            color: var(--correct);
+        }
+
+        .leaderboard-list {
+            width: 100%;
+        }
+
+        .lb-row {
+            display: flex;
+            align-items: center;
+            padding: 0.625rem 0;
+            border-bottom: 1px solid var(--border-color);
+            gap: 0.75rem;
+            font-size: 0.85rem;
+        }
+
+        .lb-row:last-child {
+            border-bottom: none;
+        }
+
+        .lb-rank {
+            width: 1.5rem;
+            font-weight: 700;
+            font-family: 'Cormorant Garamond', Georgia, serif;
+            font-size: 1.1rem;
+            text-align: center;
+            color: var(--text-muted);
+        }
+
+        .lb-rank.gold { color: #b8860b; }
+        .lb-rank.silver { color: #808080; }
+        .lb-rank.bronze { color: #a0522d; }
+
+        .lb-avatar {
+            width: 1.75rem;
+            height: 1.75rem;
+            border-radius: 50%;
+            border: 1px solid var(--border-color);
+        }
+
+        .lb-name {
+            flex: 1;
+            font-weight: 500;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .lb-stats {
+            display: flex;
+            gap: 1rem;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .lb-stat {
+            text-align: center;
+        }
+
+        .lb-stat-value {
+            font-weight: 600;
+            color: var(--text-primary);
+            display: block;
+        }
+
+        .lb-trophy {
+            display: inline-flex;
+            align-items: center;
+            margin-left: 0.35rem;
+            vertical-align: middle;
+        }
+
+        .lb-trophy-gold { color: #b8860b; }
+        .lb-trophy-silver { color: #808080; }
+        .lb-trophy-bronze { color: #a0522d; }
+
         /* Loading */
         .loading {
             display: inline-block;
@@ -735,7 +1001,19 @@
     <div class="container">
         <header class="header">
             <div class="header-top">
-                <button class="icon-btn" onclick="showHelp()" aria-label="How to play">?</button>
+                <div class="header-actions">
+                    <button class="icon-btn" onclick="showHelp()" aria-label="How to play">?</button>
+                    <button class="icon-btn" onclick="showLeaderboard()" aria-label="Leaderboard">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/>
+                            <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
+                            <path d="M4 22h16"/>
+                            <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/>
+                            <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/>
+                            <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>
+                        </svg>
+                    </button>
+                </div>
                 <h1 class="logo">Wordle <span>Six</span></h1>
                 <div class="header-actions">
                     <button class="icon-btn" onclick="showSettings()" aria-label="Settings">
@@ -751,6 +1029,9 @@
                             <rect x="17" y="3" width="4" height="18"/>
                         </svg>
                     </button>
+                    <div class="auth-area" id="authArea">
+                        <div id="authLoading"></div>
+                    </div>
                 </div>
             </div>
             <p class="subtitle">A daily word puzzle</p>
@@ -805,6 +1086,23 @@
         </div>
     </div>
 
+    <!-- Top 3 Leaderboard (below board) -->
+    <div class="top-players" id="topPlayers" style="display: none;"></div>
+
+    <!-- Leaderboard Modal -->
+    <div class="modal" id="leaderboardModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Leaderboard</h2>
+                <button class="close-btn" onclick="closeModal('leaderboardModal')">&times;</button>
+            </div>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem;">Ranked by weighted average guesses. Hard mode wins get a 10% bonus.</p>
+            <div class="leaderboard-list" id="leaderboardList">
+                <div style="text-align: center; color: var(--text-muted); padding: 2rem 0;">Loading...</div>
+            </div>
+        </div>
+    </div>
+
     <!-- Win Modal -->
     <div class="modal" id="winModal">
         <div class="modal-content win-modal-content">
@@ -839,8 +1137,8 @@
                     <span class="stat-label">Played</span>
                 </div>
                 <div class="stat">
-                    <span class="stat-number" id="winRate">0</span>
-                    <span class="stat-label">Win %</span>
+                    <span class="stat-number" id="gamesWon">0</span>
+                    <span class="stat-label">Won</span>
                 </div>
                 <div class="stat">
                     <span class="stat-number" id="currentStreak">0</span>
@@ -923,7 +1221,17 @@
                 <h2 class="modal-title">Settings</h2>
                 <button class="close-btn" onclick="closeModal('settingsModal')">&times;</button>
             </div>
-            <p id="hardModeWarning" style="display: none; margin: 0 0 0.75rem; padding: 0.5rem 0.75rem; background: var(--bg-secondary, #f0ede6); border-radius: 0.25rem; font-size: 0.8rem; color: var(--text-muted, #787c7e);">A guess was made without hard mode — it can't be re-enabled this round</p>
+            <div id="displayNameSetting" class="setting-row" style="display: none;">
+                <div class="setting-info">
+                    <div class="setting-name">Display Name</div>
+                    <div class="setting-desc">Shown on the leaderboard</div>
+                </div>
+                <div class="name-input-group">
+                    <input type="text" id="displayNameInput" class="name-input" maxlength="20" placeholder="Enter name">
+                    <button class="name-save-btn" id="displayNameSave" onclick="saveDisplayName()">Save</button>
+                </div>
+            </div>
+            <p id="hardModeWarning" style="display: none; margin: 0 0 0.75rem; padding: 0.5rem 0.75rem; background: var(--bg-secondary, #f0ede6); border-radius: 0.25rem; font-size: 0.8rem; color: var(--text-muted, #787c7e);"></p>
             <div class="setting-row">
                 <div class="setting-info">
                     <div class="setting-name">Hard Mode</div>
@@ -934,8 +1242,20 @@
         </div>
     </div>
 
+    <!-- Welcome / Set Name Modal -->
+    <div class="modal" id="welcomeModal">
+        <div class="modal-content" style="text-align: center;">
+            <div class="modal-title" style="margin-bottom: 0.5rem;">Welcome to Wordle Six</div>
+            <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 1.5rem;">Choose a display name for the leaderboard</p>
+            <input type="text" id="welcomeNameInput" class="name-input name-input-lg" maxlength="20" placeholder="Enter your name">
+            <p id="welcomeNameError" style="display: none; font-size: 0.8rem; color: #c45; margin-top: 0.5rem;"></p>
+            <button class="share-btn" style="margin-top: 1rem;" onclick="saveWelcomeName()">Let's play</button>
+        </div>
+    </div>
+
     <script src="words.js"></script>
     <script src="valid-words.js"></script>
     <script src="game.js"></script>
+    <script src="auth-ui.js"></script>
 </body>
 </html>
