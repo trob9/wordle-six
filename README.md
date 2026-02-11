@@ -60,7 +60,7 @@ graph TB
 
 | Layer | Technology |
 |-------|-----------|
-| Backend | Go 1.23, `net/http` (stdlib router) |
+| Backend | Go 1.25, `net/http` (stdlib router) |
 | Database | SQLite with WAL mode (`github.com/mattn/go-sqlite3`) |
 | Auth | OAuth2 (manual flow) + JWT sessions (`github.com/golang-jwt/jwt/v5`) |
 | Frontend | Vanilla HTML/CSS/JavaScript (no framework, no build step) |
@@ -242,7 +242,7 @@ fetch('/api/admin/ban',{method:'POST',headers:{'Content-Type':'application/json'
 
 ## Deployment
 
-Dockerized multi-stage build (Go 1.23-alpine builder, alpine 3.20 runtime). SQLite database persisted in a Docker volume (`wordle-six-data:/data`).
+Dockerized multi-stage build (Go 1.25-alpine builder, alpine 3.20 runtime). SQLite database persisted in a Docker volume (`wordle-six-data:/data`).
 
 ```
 wordle-six.tomtom.fyi → Cloudflare Tunnel → Caddy → wordle-six:8080
