@@ -827,6 +827,29 @@
             justify-content: center;
             gap: 1rem;
             padding: 0.5rem 0;
+            margin-top: -0.5rem;
+        }
+
+        .site-footer {
+            text-align: center;
+            padding: 2rem 0 1.5rem;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+
+        .site-footer a {
+            color: var(--text-muted);
+            text-decoration: none;
+        }
+
+        .site-footer a:hover {
+            color: var(--text-secondary);
+            text-decoration: underline;
+        }
+
+        .site-footer .footer-sep {
+            margin: 0 0.4rem;
+            opacity: 0.5;
         }
 
         .top-player {
@@ -1255,6 +1278,10 @@
             <button class="share-btn" style="margin-top: 1rem;" onclick="saveWelcomeName()">Let's play</button>
         </div>
     </div>
+
+    <footer class="site-footer">
+        Created by Thomas Robertson<span class="footer-sep">|</span><a href="https://github.com/trob9" target="_blank" rel="noopener">GitHub</a><span class="footer-sep">|</span><a href="/terms.html">Terms</a><span class="footer-sep">|</span><a href="/privacy.html">Privacy</a>
+    </footer>
 
     <script src="words.js"></script>
     <script src="valid-words.js"></script>
