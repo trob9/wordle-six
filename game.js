@@ -504,28 +504,28 @@ function checkHardMode(guess) {
     // Check green positions
     for (const [pos, letter] of Object.entries(requiredPositions)) {
         if (guess[pos] !== letter) {
-            return { valid: false, message: `Position ${parseInt(pos) + 1} must be ${letter}` };
+            return { valid: false, message: 'Correct letters must remain in place' };
         }
     }
 
     // Check yellow letters aren't in their excluded positions
     for (const [pos, letters] of Object.entries(excludedPositions)) {
         if (letters.has(guess[pos])) {
-            return { valid: false, message: `${guess[pos]} can't be in position ${parseInt(pos) + 1}` };
+            return { valid: false, message: 'Try revealed letters in a new spot' };
         }
     }
 
     // Check yellow letters are present
     for (const letter of requiredLetters) {
         if (!guess.includes(letter)) {
-            return { valid: false, message: `Guess must contain ${letter}` };
+            return { valid: false, message: 'Guess must use all revealed letters' };
         }
     }
 
     // Check absent letters are not used
     for (let i = 0; i < WORD_LENGTH; i++) {
         if (absentLetters.has(guess[i])) {
-            return { valid: false, message: `${guess[i]} is not in the word` };
+            return { valid: false, message: 'Cannot use eliminated letters' };
         }
     }
 
