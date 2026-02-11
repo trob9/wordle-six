@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Wordle Six is a daily 6-letter word puzzle game. Go backend + vanilla JS frontend. SQLite database. OAuth authentication with cross-device game state sync.
+Wordle Six is a daily 6-letter word puzzle game. Go backend + vanilla JS frontend. SQLite database. OAuth authentication with cross-device game state sync. Self-hosted.
 
 **Live URL:** https://wordle-six.tomtom.fyi
 **Deployment:** Docker container, Cloudflare Tunnel via Caddy reverse proxy.
