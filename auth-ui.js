@@ -11,9 +11,13 @@ let currentUser = null;
     }
     renderAuthUI();
     loadTopPlayers();
-    if (typeof initGame === 'function') initGame();
-    if (currentUser && currentUser.is_new) {
-        showWelcomeModal();
+    if (currentUser && currentUser.banned) {
+        showBannedScreen();
+    } else {
+        if (typeof initGame === 'function') initGame();
+        if (currentUser && currentUser.is_new) {
+            showWelcomeModal();
+        }
     }
 })();
 
@@ -119,7 +123,11 @@ document.addEventListener('click', (e) => {
 async function signOut() {
     await fetch('/auth/logout', { method: 'POST' });
     currentUser = null;
-    renderAuthUI();
+    // Clear game state so next account doesn't see stale data
+    localStorage.removeItem('gameState');
+    localStorage.removeItem('stats');
+    localStorage.removeItem('hardMode');
+    window.location.reload();
 }
 
 // Leaderboard
@@ -279,6 +287,25 @@ function renderLeaderboard(entries) {
     });
 }
 
+// Ban screen
+function showBannedScreen() {
+    const gameArea = document.querySelector('.game-area');
+    if (gameArea) {
+        gameArea.textContent = '';
+        const msg = document.createElement('div');
+        msg.style.cssText = 'text-align: center; padding: 3rem 1rem;';
+        const title = document.createElement('div');
+        title.style.cssText = 'font-family: "Cormorant Garamond", Georgia, serif; font-size: 1.5rem; font-weight: 600; margin-bottom: 0.75rem; color: var(--text-primary);';
+        title.textContent = 'Account Suspended';
+        const desc = document.createElement('p');
+        desc.style.cssText = 'font-size: 0.9rem; color: var(--text-secondary); line-height: 1.6;';
+        desc.textContent = 'Your account has been banned from Wordle Six. If you believe this is an error, please contact the administrator.';
+        msg.appendChild(title);
+        msg.appendChild(desc);
+        gameArea.appendChild(msg);
+    }
+}
+
 // Display name management
 function showWelcomeModal() {
     const input = document.getElementById('welcomeNameInput');
@@ -305,7 +332,12 @@ async function saveWelcomeName() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name: name })
         });
-        if (!resp.ok) throw new Error();
+        if (!resp.ok) {
+            const errText = await resp.text();
+            error.textContent = errText.trim() || 'Failed to save name';
+            error.style.display = 'block';
+            return;
+        }
         currentUser.display_name = name;
         currentUser.is_new = false;
         renderAuthUI();
@@ -330,7 +362,13 @@ async function saveDisplayName() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name: name })
         });
-        if (!resp.ok) throw new Error();
+        if (!resp.ok) {
+            const errText = await resp.text();
+            btn.textContent = errText.trim() || 'Error';
+            btn.style.color = '#c45';
+            setTimeout(() => { btn.textContent = 'Save'; btn.style.color = ''; }, 3000);
+            return;
+        }
         currentUser.display_name = name;
         renderAuthUI();
         loadTopPlayers();

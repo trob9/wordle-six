@@ -251,13 +251,13 @@ func handleAuthMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Use custom name as display_name if set
 	resp := map[string]interface{}{
 		"id":           user.ID,
 		"provider":     user.Provider,
 		"display_name": user.DisplayName,
 		"avatar_url":   user.AvatarURL,
 		"is_new":       user.IsNew,
+		"banned":       user.Banned,
 	}
 	if user.CustomName != nil {
 		resp["display_name"] = *user.CustomName

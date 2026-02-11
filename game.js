@@ -50,54 +50,52 @@ async function initGame() {
         }
     }
 
-    // If signed in, sync state and stats with server
+    // If signed in, server state is authoritative — replace local state
     if (typeof currentUser !== 'undefined' && currentUser) {
         await syncStatsFromServer();
-    }
-    if (typeof currentUser !== 'undefined' && currentUser) {
         try {
             const resp = await fetch(`/api/game-state?date=${getDateString()}`);
             if (resp.ok) {
                 const serverState = await resp.json();
-                if (serverState.guesses && serverState.guesses.length > gameState.guesses.length) {
-                    // Server has more guesses — use server state
-                    gameState.guesses = serverState.guesses;
-                    gameState.gameOver = serverState.gameOver;
-                    gameState.won = serverState.won;
-                    hardMode = serverState.hardMode;
-                    localStorage.setItem('hardMode', hardMode);
-                    currentRow = gameState.guesses.length;
-                    gameOver = gameState.gameOver;
-                    saveGameState();
+                // Always apply server state for logged-in users
+                const serverGuesses = serverState.guesses || [];
+                gameState.guesses = serverGuesses;
+                gameState.gameOver = serverState.gameOver || false;
+                gameState.won = serverState.won || false;
+                hardMode = serverState.hardMode || false;
+                localStorage.setItem('hardMode', hardMode);
+                currentRow = gameState.guesses.length;
+                gameOver = gameState.gameOver;
+                targetWord = getTodaysWord();
+                saveGameState();
 
-                    // Re-render board
-                    createBoard();
-                    gameState.guesses.forEach((guess, i) => {
-                        restoreGuess(i, guess);
-                    });
-                    resetKeyboard();
-                    gameState.guesses.forEach(guess => {
-                        const result = checkGuess(guess);
-                        updateKeyboard(guess, result);
-                    });
+                // Re-render board
+                createBoard();
+                gameState.guesses.forEach((guess, i) => {
+                    restoreGuess(i, guess);
+                });
+                resetKeyboard();
+                gameState.guesses.forEach(guess => {
+                    const result = checkGuess(guess);
+                    updateKeyboard(guess, result);
+                });
 
-                    // Update hard mode toggle UI
-                    const toggle = document.getElementById('hardModeToggle');
-                    if (toggle) toggle.classList.toggle('active', hardMode);
+                // Update hard mode toggle UI
+                const toggle = document.getElementById('hardModeToggle');
+                if (toggle) toggle.classList.toggle('active', hardMode);
 
-                    if (gameOver) {
-                        if (gameState.won) {
-                            showMessage('You already solved today\'s puzzle', true);
-                            showShareButton();
-                        } else {
-                            showMessage(`The word was ${targetWord}`, true);
-                            showShareButton();
-                        }
+                if (gameOver) {
+                    if (gameState.won) {
+                        showMessage('You already solved today\'s puzzle', true);
+                        showShareButton();
+                    } else {
+                        showMessage(`The word was ${targetWord}`, true);
+                        showShareButton();
                     }
                 }
             }
         } catch (e) {
-            // Silent fail — localStorage state is fine
+            // Silent fail — localStorage state is the fallback
         }
     }
 
@@ -159,6 +157,9 @@ function attachKeyboard() {
     });
 
     document.addEventListener('keydown', (e) => {
+        // Don't capture keys when an input or modal is focused
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+        if (document.querySelector('.modal.show')) return;
         if (e.key === 'Enter') handleKey('ENTER');
         else if (e.key === 'Backspace') handleKey('BACKSPACE');
         else if (e.key.match(/^[a-zA-Z]$/)) handleKey(e.key.toUpperCase());

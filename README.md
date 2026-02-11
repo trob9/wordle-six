@@ -213,6 +213,34 @@ Rankings use a weighted average: `avg_guesses * (1 - 0.1 * has_hard_mode_wins)`.
 | POST | `/api/result` | Yes | Submit final game result |
 | GET | `/api/leaderboard?limit=` | No | Get ranked leaderboard |
 
+## Admin
+
+User ID 1 (first registered account) has admin privileges. Admin endpoints are API-only:
+
+```bash
+# List all users
+curl -b "session=COOKIE" https://wordle-six.tomtom.fyi/api/admin/users
+
+# Ban a user (removes from leaderboard, blocks gameplay)
+curl -X POST -b "session=COOKIE" -H 'Content-Type: application/json' \
+  -d '{"user_id": 3, "ban": true}' https://wordle-six.tomtom.fyi/api/admin/ban
+
+# Unban
+curl -X POST -b "session=COOKIE" -H 'Content-Type: application/json' \
+  -d '{"user_id": 3, "ban": false}' https://wordle-six.tomtom.fyi/api/admin/ban
+```
+
+Or from the browser console while signed in as user ID 1:
+```js
+fetch('/api/admin/users').then(r=>r.json()).then(console.log)
+fetch('/api/admin/ban',{method:'POST',headers:{'Content-Type':'application/json'},body:'{"user_id":3,"ban":true}'})
+```
+
+### Moderation
+- Display names are checked against the [profanity.dev](https://profanity.dev) vector API (catches misspellings and evasion)
+- Names restricted to letters, numbers, spaces, hyphens, underscores (1-20 chars)
+- Banned users see an "Account Suspended" screen and are excluded from the leaderboard
+
 ## Deployment
 
 Dockerized multi-stage build (Go 1.23-alpine builder, alpine 3.20 runtime). Deployed via vibe-deploy webhook on push to `main`. SQLite database persisted in a Docker volume (`wordle-six-data:/data`).

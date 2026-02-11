@@ -42,6 +42,7 @@ func createTables() error {
 			display_name TEXT NOT NULL,
 			custom_name TEXT,
 			avatar_url TEXT,
+			banned BOOLEAN NOT NULL DEFAULT FALSE,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			UNIQUE(provider, provider_id)
 		);
@@ -84,13 +85,14 @@ func createTables() error {
 }
 
 type User struct {
-	ID          int64  `json:"id"`
-	Provider    string `json:"provider"`
-	ProviderID  string `json:"-"`
-	DisplayName string `json:"display_name"`
+	ID          int64   `json:"id"`
+	Provider    string  `json:"provider"`
+	ProviderID  string  `json:"-"`
+	DisplayName string  `json:"display_name"`
 	CustomName  *string `json:"custom_name,omitempty"`
-	AvatarURL   string `json:"avatar_url,omitempty"`
-	IsNew       bool   `json:"is_new,omitempty"`
+	AvatarURL   string  `json:"avatar_url,omitempty"`
+	Banned      bool    `json:"-"`
+	IsNew       bool    `json:"is_new,omitempty"`
 }
 
 func upsertUser(provider, providerID, displayName, avatarURL string) (*User, error) {
@@ -125,8 +127,8 @@ func upsertUser(provider, providerID, displayName, avatarURL string) (*User, err
 func getUserByID(id int64) (*User, error) {
 	u := &User{}
 	var customName *string
-	err := db.QueryRow("SELECT id, provider, provider_id, display_name, custom_name, COALESCE(avatar_url, '') FROM users WHERE id = ?", id).
-		Scan(&u.ID, &u.Provider, &u.ProviderID, &u.DisplayName, &customName, &u.AvatarURL)
+	err := db.QueryRow("SELECT id, provider, provider_id, display_name, custom_name, COALESCE(avatar_url, ''), banned FROM users WHERE id = ?", id).
+		Scan(&u.ID, &u.Provider, &u.ProviderID, &u.DisplayName, &customName, &u.AvatarURL, &u.Banned)
 	if err != nil {
 		return nil, err
 	}
@@ -135,10 +137,19 @@ func getUserByID(id int64) (*User, error) {
 	return u, nil
 }
 
+func banUser(userID int64) error {
+	_, err := db.Exec("UPDATE users SET banned = TRUE WHERE id = ?", userID)
+	return err
+}
+
+func unbanUser(userID int64) error {
+	_, err := db.Exec("UPDATE users SET banned = FALSE WHERE id = ?", userID)
+	return err
+}
+
 func runMigrations() error {
-	// Add custom_name column if missing (existing DBs won't have it from CREATE TABLE)
 	db.Exec("ALTER TABLE users ADD COLUMN custom_name TEXT")
-	// Add hard mode stats columns if missing
+	db.Exec("ALTER TABLE users ADD COLUMN banned BOOLEAN NOT NULL DEFAULT FALSE")
 	db.Exec("ALTER TABLE user_stats ADD COLUMN played_hard INTEGER NOT NULL DEFAULT 0")
 	db.Exec("ALTER TABLE user_stats ADD COLUMN won_hard INTEGER NOT NULL DEFAULT 0")
 	return nil

@@ -125,6 +125,15 @@ Wordle Six is a daily 6-letter word puzzle game. Go backend + vanilla JS fronten
 | `PORT` | No | Server port (default: 8080) |
 | `DB_PATH` | No | SQLite path (default: `/data/wordle-six.db`) |
 
+## Admin & Moderation
+
+- User ID 1 is the admin (first registered user). Hardcoded in `game-state.go`.
+- `POST /api/admin/ban` — `{"user_id": N, "ban": true/false}`. Admin-only.
+- `GET /api/admin/users` — list all users with ban status. Admin-only.
+- Banned users: see "Account Suspended" screen, excluded from leaderboard (`WHERE u.banned = FALSE` in `leaderboard.go`), cannot update display name.
+- Display names validated: 1-20 chars, `[\w\s\-]+` regex, profanity checked via `POST https://vector.profanity.dev` (vector/semantic API, catches misspellings). Fails open if API is down.
+- All DB queries use parameterized statements (Go `database/sql`) — no SQL injection risk.
+
 ## Common Tasks
 
 ### Rebuild and redeploy
