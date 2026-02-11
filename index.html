@@ -923,10 +923,11 @@
                 <h2 class="modal-title">Settings</h2>
                 <button class="close-btn" onclick="closeModal('settingsModal')">&times;</button>
             </div>
+            <p id="hardModeWarning" style="display: none; margin: 0 0 0.75rem; padding: 0.5rem 0.75rem; background: var(--bg-secondary, #f0ede6); border-radius: 0.25rem; font-size: 0.8rem; color: var(--text-muted, #787c7e);">Hard mode can only be changed at the start of a round</p>
             <div class="setting-row">
                 <div class="setting-info">
                     <div class="setting-name">Hard Mode</div>
-                    <div class="setting-desc" id="hardModeDesc">Revealed hints must be used in subsequent guesses</div>
+                    <div class="setting-desc">Revealed hints must be used in subsequent guesses</div>
                 </div>
                 <button class="toggle" id="hardModeToggle" onclick="toggleHardMode()" aria-label="Toggle hard mode"></button>
             </div>
