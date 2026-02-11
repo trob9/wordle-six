@@ -3,25 +3,54 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="theme-color" content="#1e3c72">
+    <meta name="theme-color" content="#1a1a18">
     <meta name="description" content="Wordle Six - Daily 6-letter word puzzle game">
+
+    <!-- Open Graph / Social Preview -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://wordle-six.tomtom.fyi/">
+    <meta property="og:title" content="Wordle Six">
+    <meta property="og:description" content="Six letters. Six attempts. One word. A refined daily word puzzle.">
+    <meta property="og:image" content="https://wordle-six.tomtom.fyi/og-preview.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Wordle Six">
+    <meta name="twitter:description" content="Six letters. Six attempts. One word. A refined daily word puzzle.">
+    <meta name="twitter:image" content="https://wordle-six.tomtom.fyi/og-preview.png">
+
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Wordle Six - Daily 6 Letter Word Game</title>
+    <title>Wordle Six</title>
     <link rel="manifest" href="manifest.json">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-primary: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-            --bg-container: rgba(255, 255, 255, 0.1);
-            --text-primary: #ffffff;
-            --text-secondary: rgba(255, 255, 255, 0.9);
-            --border-color: rgba(255, 255, 255, 0.3);
-            --tile-size: 3.5rem;
-            --tile-gap: 0.4rem;
-            --correct: #6aaa64;
-            --present: #c9b458;
-            --absent: #787c7e;
-            --key-bg: rgba(255, 255, 255, 0.2);
+            --bg-primary: #f7f5f0;
+            --bg-secondary: #edeae3;
+            --bg-tile: #ffffff;
+            --text-primary: #1a1a18;
+            --text-secondary: #5c5c58;
+            --text-muted: #8a8a86;
+            --border-color: #d4d0c8;
+            --border-strong: #1a1a18;
+            --tile-size: 3.25rem;
+            --tile-gap: 0.35rem;
+            --correct: #4a7c59;
+            --correct-light: #5d9970;
+            --present: #c4a35a;
+            --present-light: #d4b76a;
+            --absent: #787872;
+            --absent-light: #a8a8a2;
+            --key-bg: #e8e5de;
+            --key-hover: #dedad0;
+            --shadow-sm: 0 1px 2px rgba(26, 26, 24, 0.05);
+            --shadow-md: 0 4px 12px rgba(26, 26, 24, 0.08);
+            --shadow-lg: 0 8px 32px rgba(26, 26, 24, 0.12);
         }
 
         * {
@@ -31,24 +60,56 @@
             -webkit-tap-highlight-color: transparent;
         }
 
+        html {
+            background: var(--bg-primary);
+        }
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
             background: var(--bg-primary);
             min-height: 100vh;
+            min-height: 100dvh;
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding: 0.5rem;
             color: var(--text-primary);
             overflow-x: hidden;
             touch-action: manipulation;
+            position: relative;
         }
 
+        /* Subtle paper texture overlay */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+            opacity: 0.03;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            max-width: 420px;
+            padding: 0 1rem;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            min-height: 100dvh;
+        }
+
+        /* Header */
         .header {
             text-align: center;
-            margin: 1rem 0;
-            width: 100%;
-            max-width: 500px;
+            padding: 1.5rem 0 1rem;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 1.25rem;
         }
 
         .header-top {
@@ -58,51 +119,137 @@
             margin-bottom: 0.5rem;
         }
 
-        h1 {
-            font-size: clamp(1.5rem, 5vw, 2.5rem);
-            margin: 0;
+        .logo {
+            font-family: 'Cormorant Garamond', Georgia, serif;
+            font-size: clamp(1.75rem, 6vw, 2.25rem);
+            font-weight: 600;
+            letter-spacing: -0.02em;
+            color: var(--text-primary);
+        }
+
+        .logo span {
+            font-weight: 400;
+            color: var(--text-secondary);
         }
 
         .subtitle {
-            opacity: 0.9;
-            font-size: clamp(0.85rem, 3vw, 1.1rem);
+            font-family: 'Cormorant Garamond', Georgia, serif;
+            font-size: 0.95rem;
+            color: var(--text-muted);
+            font-style: italic;
+            letter-spacing: 0.02em;
         }
 
         .icon-btn {
-            background: var(--key-bg);
-            border: none;
-            color: var(--text-primary);
-            width: 2.5rem;
-            height: 2.5rem;
-            border-radius: 0.5rem;
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            width: 2.25rem;
+            height: 2.25rem;
+            border-radius: 0.375rem;
             cursor: pointer;
-            font-size: 1.2rem;
+            font-size: 0.85rem;
+            font-weight: 600;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: all 0.2s;
+            transition: all 0.15s ease;
+        }
+
+        .icon-btn:hover {
+            background: var(--bg-secondary);
+            border-color: var(--border-strong);
+            color: var(--text-primary);
         }
 
         .icon-btn:active {
-            transform: scale(0.95);
-            background: rgba(255, 255, 255, 0.3);
+            transform: scale(0.96);
         }
 
-        .game-container {
-            background: var(--bg-container);
-            backdrop-filter: blur(10px);
-            padding: clamp(1rem, 4vw, 2rem);
-            border-radius: 1.25rem;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-            max-width: 500px;
-            width: 100%;
+        .header-actions {
+            display: flex;
+            gap: 0.5rem;
         }
 
+        /* Settings */
+        .setting-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .setting-row:last-child {
+            border-bottom: none;
+        }
+
+        .setting-info {
+            flex: 1;
+        }
+
+        .setting-name {
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: var(--text-primary);
+        }
+
+        .setting-desc {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-top: 0.125rem;
+            line-height: 1.4;
+        }
+
+        .toggle {
+            position: relative;
+            width: 2.75rem;
+            height: 1.5rem;
+            background: var(--border-color);
+            border-radius: 0.75rem;
+            border: none;
+            cursor: pointer;
+            transition: background 0.2s ease;
+            flex-shrink: 0;
+            margin-left: 1rem;
+        }
+
+        .toggle::after {
+            content: '';
+            position: absolute;
+            top: 0.1875rem;
+            left: 0.1875rem;
+            width: 1.125rem;
+            height: 1.125rem;
+            background: #fff;
+            border-radius: 50%;
+            transition: transform 0.2s ease;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+        }
+
+        .toggle.active {
+            background: var(--correct);
+        }
+
+        .toggle.active::after {
+            transform: translateX(1.25rem);
+        }
+
+        /* Game Area */
+        .game-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            gap: 1.25rem;
+        }
+
+        /* Board */
         .board {
             display: flex;
             flex-direction: column;
             gap: var(--tile-gap);
-            margin-bottom: 1.5rem;
+            align-self: center;
         }
 
         .row {
@@ -115,69 +262,91 @@
             width: var(--tile-size);
             height: var(--tile-size);
             border: 2px solid var(--border-color);
+            background: var(--bg-tile);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: clamp(1.5rem, 4vw, 2rem);
-            font-weight: bold;
+            font-family: 'Cormorant Garamond', Georgia, serif;
+            font-size: clamp(1.5rem, 5vw, 1.75rem);
+            font-weight: 700;
             text-transform: uppercase;
-            border-radius: 0.25rem;
-            transition: all 0.15s;
+            transition: all 0.1s ease;
             user-select: none;
             color: var(--text-primary);
         }
 
         .tile.filled {
-            border-color: rgba(255, 255, 255, 0.6);
-            transform: scale(1.05);
+            border-color: var(--border-strong);
+            animation: pop 0.1s ease;
+        }
+
+        @keyframes pop {
+            50% { transform: scale(1.05); }
         }
 
         .tile.correct {
             background: var(--correct);
             border-color: var(--correct);
-            animation: flip 0.5s;
-            color: white;
+            color: #fff;
+            animation: flip 0.5s ease;
         }
 
         .tile.present {
             background: var(--present);
             border-color: var(--present);
-            animation: flip 0.5s;
-            color: white;
+            color: #fff;
+            animation: flip 0.5s ease;
         }
 
         .tile.absent {
             background: var(--absent);
             border-color: var(--absent);
-            animation: flip 0.5s;
-            color: white;
+            color: #fff;
+            animation: flip 0.5s ease;
         }
 
         @keyframes flip {
-            0% { transform: rotateX(0); }
-            50% { transform: rotateX(90deg); }
-            100% { transform: rotateX(0); }
+            0% { transform: rotateX(0) scale(1); }
+            45% { transform: rotateX(90deg) scale(1.02); }
+            55% { transform: rotateX(90deg) scale(1.02); }
+            100% { transform: rotateX(0) scale(1); }
         }
 
         @keyframes shake {
             0%, 100% { transform: translateX(0); }
-            25% { transform: translateX(-10px); }
-            75% { transform: translateX(10px); }
+            20% { transform: translateX(-6px); }
+            40% { transform: translateX(6px); }
+            60% { transform: translateX(-4px); }
+            80% { transform: translateX(4px); }
         }
 
         @keyframes bounce {
             0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-10px); }
+            30% { transform: translateY(-8px); }
+            60% { transform: translateY(-4px); }
         }
 
-        .shake { animation: shake 0.5s; }
-        .bounce { animation: bounce 0.6s; }
+        .row.shake { animation: shake 0.4s ease; }
+        .row.bounce .tile { animation: bounce 0.5s ease; }
 
+        /* Message */
+        .message {
+            text-align: center;
+            font-size: 0.9rem;
+            font-weight: 500;
+            min-height: 1.5rem;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Keyboard */
         .keyboard {
             display: flex;
             flex-direction: column;
             gap: 0.4rem;
-            margin-bottom: 1rem;
+            padding: 0.75rem 0 1.5rem;
             touch-action: manipulation;
         }
 
@@ -188,48 +357,63 @@
         }
 
         .key {
-            padding: clamp(0.75rem, 3vw, 1rem);
-            min-width: clamp(1.75rem, 6vw, 2.5rem);
+            padding: 0.875rem 0;
+            min-width: clamp(1.75rem, 7vw, 2.25rem);
             background: var(--key-bg);
             border: none;
-            border-radius: 0.3rem;
+            border-radius: 0.25rem;
             color: var(--text-primary);
-            font-size: clamp(0.7rem, 2.5vw, 0.9rem);
-            font-weight: bold;
+            font-family: 'DM Sans', sans-serif;
+            font-size: clamp(0.7rem, 2.5vw, 0.8rem);
+            font-weight: 600;
             cursor: pointer;
-            transition: all 0.15s;
+            transition: all 0.1s ease;
             user-select: none;
             touch-action: manipulation;
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+        }
+
+        .key:hover {
+            background: var(--key-hover);
         }
 
         .key:active {
             transform: scale(0.95);
-            background: rgba(255, 255, 255, 0.3);
         }
 
         .key.wide {
-            min-width: clamp(3rem, 10vw, 4rem);
-            font-size: clamp(0.6rem, 2vw, 0.8rem);
+            min-width: clamp(3.5rem, 12vw, 4.25rem);
+            font-size: clamp(0.6rem, 2vw, 0.7rem);
+            letter-spacing: 0.04em;
         }
 
-        .key.correct { background: var(--correct); }
-        .key.present { background: var(--present); }
+        .key.correct {
+            background: var(--correct);
+            color: #fff;
+        }
+        .key.correct:hover {
+            background: var(--correct-light);
+        }
+
+        .key.present {
+            background: var(--present);
+            color: #fff;
+        }
+        .key.present:hover {
+            background: var(--present-light);
+        }
+
         .key.absent {
             background: var(--absent);
-            opacity: 0.5;
+            color: #fff;
+            opacity: 0.7;
+        }
+        .key.absent:hover {
+            background: var(--absent-light);
         }
 
-        .message {
-            text-align: center;
-            margin-top: 1rem;
-            font-size: clamp(1rem, 3.5vw, 1.2rem);
-            font-weight: bold;
-            min-height: 2rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
+        /* Modals */
         .modal {
             display: none;
             position: fixed;
@@ -237,7 +421,8 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.8);
+            background: rgba(26, 26, 24, 0.4);
+            backdrop-filter: blur(4px);
             z-index: 1000;
             align-items: center;
             justify-content: center;
@@ -249,15 +434,15 @@
         }
 
         .modal-content {
-            background: var(--bg-container);
-            backdrop-filter: blur(20px);
+            background: var(--bg-primary);
             padding: 2rem;
-            border-radius: 1rem;
-            max-width: 500px;
+            border-radius: 0.5rem;
+            max-width: 400px;
             width: 100%;
-            max-height: 90vh;
+            max-height: 85vh;
             overflow-y: auto;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            box-shadow: var(--shadow-lg);
+            border: 1px solid var(--border-color);
         }
 
         .modal-header {
@@ -265,47 +450,66 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border-color);
         }
 
         .modal-title {
+            font-family: 'Cormorant Garamond', Georgia, serif;
             font-size: 1.5rem;
-            font-weight: bold;
+            font-weight: 600;
+            color: var(--text-primary);
         }
 
         .close-btn {
             background: none;
             border: none;
-            color: white;
+            color: var(--text-muted);
             font-size: 1.5rem;
             cursor: pointer;
             padding: 0;
             width: 2rem;
             height: 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.15s;
         }
 
+        .close-btn:hover {
+            color: var(--text-primary);
+        }
+
+        /* Stats */
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-            gap: 1rem;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0.75rem;
             margin-bottom: 1.5rem;
         }
 
         .stat {
             text-align: center;
-            padding: 1rem;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 0.5rem;
+            padding: 0.75rem 0.5rem;
+            background: var(--bg-secondary);
+            border-radius: 0.375rem;
         }
 
         .stat-number {
-            font-size: 2rem;
-            font-weight: bold;
+            font-family: 'Cormorant Garamond', Georgia, serif;
+            font-size: 1.75rem;
+            font-weight: 700;
             display: block;
+            color: var(--text-primary);
+            line-height: 1;
+            margin-bottom: 0.25rem;
         }
 
         .stat-label {
-            font-size: 0.85rem;
-            opacity: 0.8;
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
         }
 
         .distribution {
@@ -313,37 +517,44 @@
         }
 
         .distribution h3 {
-            margin-bottom: 1rem;
-            font-size: 1.2rem;
+            font-family: 'Cormorant Garamond', Georgia, serif;
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            color: var(--text-secondary);
         }
 
         .dist-bar {
             display: flex;
             align-items: center;
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.35rem;
             gap: 0.5rem;
         }
 
         .dist-label {
-            width: 1rem;
+            width: 0.75rem;
             text-align: right;
-            font-weight: bold;
+            font-weight: 600;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
         }
 
         .dist-bar-fill {
-            background: var(--correct);
-            height: 1.5rem;
+            background: var(--absent);
+            height: 1.25rem;
             min-width: 1.5rem;
             display: flex;
             align-items: center;
+            justify-content: flex-end;
             padding: 0 0.5rem;
-            border-radius: 0.25rem;
-            font-weight: bold;
-            font-size: 0.9rem;
+            font-weight: 600;
+            font-size: 0.75rem;
+            color: #fff;
+            transition: width 0.3s ease;
         }
 
         .dist-bar-fill.current {
-            background: var(--present);
+            background: var(--correct);
         }
 
         .share-section {
@@ -352,34 +563,61 @@
         }
 
         .share-btn {
-            background: var(--correct);
-            color: white;
+            background: var(--text-primary);
+            color: var(--bg-primary);
             border: none;
-            padding: 1rem 2rem;
-            border-radius: 0.5rem;
-            font-size: 1rem;
-            font-weight: bold;
+            padding: 0.875rem 1.5rem;
+            border-radius: 0.375rem;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.85rem;
+            font-weight: 600;
             cursor: pointer;
             width: 100%;
+            transition: all 0.15s ease;
+            letter-spacing: 0.02em;
+        }
+
+        .share-btn:hover {
+            background: var(--text-secondary);
         }
 
         .share-btn:active {
             transform: scale(0.98);
         }
 
+        .share-btn.secondary {
+            background: transparent;
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+            margin-top: 0.75rem;
+        }
+
+        .share-btn.secondary:hover {
+            background: var(--bg-secondary);
+            border-color: var(--border-strong);
+        }
+
         .timer {
             text-align: center;
             margin-top: 1rem;
-            font-size: 0.9rem;
-            opacity: 0.9;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            font-family: 'DM Sans', sans-serif;
         }
 
+        /* Help Section */
         .help-section {
             line-height: 1.6;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
         }
 
         .help-section h3 {
-            margin: 1rem 0 0.5rem;
+            font-family: 'Cormorant Garamond', Georgia, serif;
+            font-size: 1rem;
+            font-weight: 600;
+            margin: 1.25rem 0 0.5rem;
+            color: var(--text-primary);
         }
 
         .help-section p {
@@ -388,65 +626,61 @@
 
         .example-tiles {
             display: flex;
-            gap: 0.3rem;
-            margin: 0.5rem 0;
+            gap: 0.25rem;
+            margin: 0.75rem 0;
         }
 
         .example-tiles .tile {
-            width: 2.5rem;
-            height: 2.5rem;
-            font-size: 1.2rem;
+            width: 2.25rem;
+            height: 2.25rem;
+            font-size: 1.1rem;
         }
 
-        /* Win Modal Styles */
+        /* Win Modal */
         .win-modal-content {
             text-align: center;
         }
 
-        .win-emoji {
-            font-size: 4rem;
-            margin-bottom: 1rem;
+        .win-icon {
+            font-size: 2.5rem;
+            margin-bottom: 0.75rem;
+            display: block;
         }
 
         .win-message {
-            font-size: 1.8rem;
-            font-weight: bold;
-            margin-bottom: 0.5rem;
+            font-family: 'Cormorant Garamond', Georgia, serif;
+            font-size: 1.75rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+            color: var(--text-primary);
         }
 
         .win-subtext {
-            font-size: 1.2rem;
-            opacity: 0.9;
-            margin-bottom: 2rem;
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+            margin-bottom: 1.5rem;
         }
 
-        @media (max-width: 480px) {
-            :root {
-                --tile-size: 3rem;
-                --tile-gap: 0.3rem;
-            }
-
-            .game-container {
-                padding: 1rem;
-            }
-
-            .key {
-                padding: 0.7rem 0.2rem;
-            }
+        .answer-reveal {
+            font-family: 'Cormorant Garamond', Georgia, serif;
+            font-size: 2rem;
+            font-weight: 700;
+            letter-spacing: 0.15em;
+            color: var(--text-primary);
+            background: var(--bg-secondary);
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.375rem;
+            margin-bottom: 1.5rem;
+            display: inline-block;
         }
 
-        @media (max-width: 360px) {
-            :root {
-                --tile-size: 2.5rem;
-            }
-        }
-
+        /* Loading */
         .loading {
             display: inline-block;
             width: 1rem;
             height: 1rem;
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            border-top-color: white;
+            border: 2px solid var(--border-color);
+            border-top-color: var(--text-primary);
             border-radius: 50%;
             animation: spin 0.6s linear infinite;
         }
@@ -454,69 +688,141 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+
+        /* Mobile adjustments */
+        @media (max-width: 400px) {
+            :root {
+                --tile-size: 2.85rem;
+                --tile-gap: 0.3rem;
+            }
+
+            .container {
+                padding: 0 0.75rem;
+            }
+
+            .header {
+                padding: 1rem 0 0.75rem;
+            }
+
+            .key {
+                padding: 0.75rem 0;
+            }
+
+            .modal-content {
+                padding: 1.5rem;
+            }
+
+            .stats-grid {
+                gap: 0.5rem;
+            }
+        }
+
+        @media (max-width: 350px) {
+            :root {
+                --tile-size: 2.5rem;
+            }
+        }
+
+        /* Tall screens - add more spacing */
+        @media (min-height: 750px) {
+            .game-area {
+                gap: 1.5rem;
+            }
+        }
     </style>
 </head>
 <body>
-    <div class="header">
-        <div class="header-top">
-            <button class="icon-btn" onclick="showHelp()">?</button>
-            <h1>🎮 Wordle Six</h1>
-            <button class="icon-btn" onclick="showStats()">📊</button>
+    <div class="container">
+        <header class="header">
+            <div class="header-top">
+                <button class="icon-btn" onclick="showHelp()" aria-label="How to play">?</button>
+                <h1 class="logo">Wordle <span>Six</span></h1>
+                <div class="header-actions">
+                    <button class="icon-btn" onclick="showSettings()" aria-label="Settings">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="3"/>
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                        </svg>
+                    </button>
+                    <button class="icon-btn" onclick="showStats()" aria-label="Statistics">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                            <rect x="3" y="12" width="4" height="9"/>
+                            <rect x="10" y="6" width="4" height="15"/>
+                            <rect x="17" y="3" width="4" height="18"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <p class="subtitle">A daily word puzzle</p>
+        </header>
+
+        <div class="game-area">
+            <div class="board" id="board"></div>
+            <div class="message" id="message"></div>
+
+            <div class="keyboard">
+                <div class="keyboard-row">
+                    <button class="key" data-key="Q">Q</button>
+                    <button class="key" data-key="W">W</button>
+                    <button class="key" data-key="E">E</button>
+                    <button class="key" data-key="R">R</button>
+                    <button class="key" data-key="T">T</button>
+                    <button class="key" data-key="Y">Y</button>
+                    <button class="key" data-key="U">U</button>
+                    <button class="key" data-key="I">I</button>
+                    <button class="key" data-key="O">O</button>
+                    <button class="key" data-key="P">P</button>
+                </div>
+                <div class="keyboard-row">
+                    <button class="key" data-key="A">A</button>
+                    <button class="key" data-key="S">S</button>
+                    <button class="key" data-key="D">D</button>
+                    <button class="key" data-key="F">F</button>
+                    <button class="key" data-key="G">G</button>
+                    <button class="key" data-key="H">H</button>
+                    <button class="key" data-key="J">J</button>
+                    <button class="key" data-key="K">K</button>
+                    <button class="key" data-key="L">L</button>
+                </div>
+                <div class="keyboard-row">
+                    <button class="key wide" data-key="ENTER">Enter</button>
+                    <button class="key" data-key="Z">Z</button>
+                    <button class="key" data-key="X">X</button>
+                    <button class="key" data-key="C">C</button>
+                    <button class="key" data-key="V">V</button>
+                    <button class="key" data-key="B">B</button>
+                    <button class="key" data-key="N">N</button>
+                    <button class="key" data-key="M">M</button>
+                    <button class="key wide" data-key="BACKSPACE">
+                        <svg width="20" height="16" viewBox="0 0 24 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"/>
+                            <line x1="18" y1="9" x2="12" y2="15"/>
+                            <line x1="12" y1="9" x2="18" y2="15"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
         </div>
-        <p class="subtitle">Daily 6-letter word puzzle</p>
-    </div>
-
-    <div class="game-container">
-        <div class="board" id="board"></div>
-
-        <div class="keyboard">
-            <div class="keyboard-row">
-                <button class="key" data-key="Q">Q</button>
-                <button class="key" data-key="W">W</button>
-                <button class="key" data-key="E">E</button>
-                <button class="key" data-key="R">R</button>
-                <button class="key" data-key="T">T</button>
-                <button class="key" data-key="Y">Y</button>
-                <button class="key" data-key="U">U</button>
-                <button class="key" data-key="I">I</button>
-                <button class="key" data-key="O">O</button>
-                <button class="key" data-key="P">P</button>
-            </div>
-            <div class="keyboard-row">
-                <button class="key" data-key="A">A</button>
-                <button class="key" data-key="S">S</button>
-                <button class="key" data-key="D">D</button>
-                <button class="key" data-key="F">F</button>
-                <button class="key" data-key="G">G</button>
-                <button class="key" data-key="H">H</button>
-                <button class="key" data-key="J">J</button>
-                <button class="key" data-key="K">K</button>
-                <button class="key" data-key="L">L</button>
-            </div>
-            <div class="keyboard-row">
-                <button class="key wide" data-key="ENTER">ENTER</button>
-                <button class="key" data-key="Z">Z</button>
-                <button class="key" data-key="X">X</button>
-                <button class="key" data-key="C">C</button>
-                <button class="key" data-key="V">V</button>
-                <button class="key" data-key="B">B</button>
-                <button class="key" data-key="N">N</button>
-                <button class="key" data-key="M">M</button>
-                <button class="key wide" data-key="BACKSPACE">⌫</button>
-            </div>
-        </div>
-
-        <div class="message" id="message"></div>
     </div>
 
     <!-- Win Modal -->
     <div class="modal" id="winModal">
         <div class="modal-content win-modal-content">
-            <div class="win-emoji">🎉</div>
-            <div class="win-message">Congratulations!</div>
-            <div class="win-subtext">You solved it in <span id="winGuessCount">-</span> guesses!</div>
-            <button class="share-btn" onclick="shareResults(); closeModal('winModal');">Share Results 📋</button>
-            <button class="share-btn" onclick="closeModal('winModal'); showStats();" style="margin-top: 1rem; background: rgba(255,255,255,0.2);">View Stats</button>
+            <div class="win-message" style="margin-top: 0.5rem;">Well done</div>
+            <div class="win-subtext">Solved in <span id="winGuessCount">-</span> <span id="guessWord">guesses</span></div>
+            <button class="share-btn" onclick="shareResults(this)">Share Results</button>
+            <button class="share-btn secondary" onclick="closeModal('winModal'); showStats();">View Statistics</button>
+        </div>
+    </div>
+
+    <!-- Loss Modal -->
+    <div class="modal" id="lossModal">
+        <div class="modal-content win-modal-content">
+            <div class="win-message" style="margin-top: 0.5rem;">Better luck tomorrow</div>
+            <div class="win-subtext">The word was</div>
+            <div class="answer-reveal" id="answerReveal">ANSWER</div>
+            <button class="share-btn" onclick="shareResults(this)">Share Results</button>
+            <button class="share-btn secondary" onclick="closeModal('lossModal'); showStats();">View Statistics</button>
         </div>
     </div>
 
@@ -525,7 +831,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h2 class="modal-title">Statistics</h2>
-                <button class="close-btn" onclick="closeModal('statsModal')">×</button>
+                <button class="close-btn" onclick="closeModal('statsModal')">&times;</button>
             </div>
             <div class="stats-grid">
                 <div class="stat">
@@ -542,7 +848,7 @@
                 </div>
                 <div class="stat">
                     <span class="stat-number" id="maxStreak">0</span>
-                    <span class="stat-label">Max Streak</span>
+                    <span class="stat-label">Best</span>
                 </div>
             </div>
             <div class="distribution">
@@ -550,7 +856,7 @@
                 <div id="distributionChart"></div>
             </div>
             <div class="share-section" id="shareSection" style="display: none;">
-                <button class="share-btn" onclick="shareResults()">Share Results 📋</button>
+                <button class="share-btn" onclick="shareResults(this)">Share Results</button>
             </div>
             <div class="timer" id="nextWordTimer"></div>
         </div>
@@ -561,18 +867,16 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h2 class="modal-title">How to Play</h2>
-                <button class="close-btn" onclick="closeModal('helpModal')">×</button>
+                <button class="close-btn" onclick="closeModal('helpModal')">&times;</button>
             </div>
             <div class="help-section">
-                <p>Guess the <strong>6-letter word</strong> in 6 tries.</p>
+                <p>Guess the six-letter word in six attempts.</p>
 
                 <h3>Rules</h3>
-                <p>• Each guess must be a valid 6-letter word</p>
-                <p>• The color of the tiles will change to show how close your guess was</p>
-                <p>• A new word is available each day at midnight</p>
+                <p>Each guess must be a valid six-letter word. After each guess, the tiles will change colour to show how close you were.</p>
 
                 <h3>Examples</h3>
-                <p style="margin-bottom: 0.25rem;">If the word is STREAM:</p>
+                <p style="margin-bottom: 0.25rem; margin-top: 1rem;">If the word is <strong>STREAM</strong>:</p>
 
                 <div class="example-tiles">
                     <div class="tile correct">S</div>
@@ -582,7 +886,7 @@
                     <div class="tile">N</div>
                     <div class="tile">G</div>
                 </div>
-                <p><strong>S</strong> is in the word and in the correct spot</p>
+                <p><strong>S</strong> is in the correct position.</p>
 
                 <div class="example-tiles">
                     <div class="tile">G</div>
@@ -592,7 +896,7 @@
                     <div class="tile">T</div>
                     <div class="tile">S</div>
                 </div>
-                <p><strong>E</strong> is in the word but in the wrong spot</p>
+                <p><strong>E</strong> is in the word but wrong position.</p>
 
                 <div class="example-tiles">
                     <div class="tile">P</div>
@@ -602,7 +906,29 @@
                     <div class="tile">E</div>
                     <div class="tile">S</div>
                 </div>
-                <p><strong>U</strong> is not in the word</p>
+                <p><strong>U</strong> is not in the word.</p>
+
+                <h3>Hard Mode</h3>
+                <p>Enable via the settings gear. Any hints revealed in previous guesses must be used in all future guesses.</p>
+
+                <p style="margin-top: 1.5rem; color: var(--text-muted); font-size: 0.85rem;">A new word is available each day at midnight.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal" id="settingsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Settings</h2>
+                <button class="close-btn" onclick="closeModal('settingsModal')">&times;</button>
+            </div>
+            <div class="setting-row">
+                <div class="setting-info">
+                    <div class="setting-name">Hard Mode</div>
+                    <div class="setting-desc">Revealed hints must be used in subsequent guesses</div>
+                </div>
+                <button class="toggle" id="hardModeToggle" onclick="toggleHardMode()" aria-label="Toggle hard mode"></button>
             </div>
         </div>
     </div>
