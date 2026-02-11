@@ -6,6 +6,7 @@ let currentGuess = '';
 let currentRow = 0;
 let gameOver = false;
 let gameState = null;
+let hardMode = false;
 
 // Word validation cache
 const validationCache = JSON.parse(localStorage.getItem('wordCache')) || {};
@@ -13,6 +14,7 @@ const validationCache = JSON.parse(localStorage.getItem('wordCache')) || {};
 // Initialize game
 function init() {
     loadGameState();
+    loadHardMode();
     createBoard();
     attachKeyboard();
     updateStatsDisplay();
@@ -40,10 +42,12 @@ function init() {
 
         if (gameOver) {
             if (gameState.won) {
-                showMessage('🎉 You already won today!');
+                showMessage('You already solved today\'s puzzle', true);
                 showShareButton();
             } else {
-                showMessage(`Today's word was ${targetWord}`);
+                // Show the answer persistently for returning users who lost
+                showMessage(`The word was ${targetWord}`, true);
+                showShareButton();
             }
         }
     }
@@ -156,6 +160,17 @@ async function submitGuess() {
         return;
     }
 
+    // Check hard mode constraints
+    const hardCheck = checkHardMode(guess);
+    if (!hardCheck.valid) {
+        showMessage(hardCheck.message);
+        shakeRow();
+        return;
+    }
+
+    // Clear loading message
+    showMessage('');
+
     // Save guess
     gameState.guesses.push(guess);
 
@@ -175,16 +190,17 @@ async function submitGuess() {
     }, WORD_LENGTH * 200);
 
     // Check win/lose
+    const guessNumber = currentRow + 1; // Capture before currentRow gets incremented
     if (guess === targetWord) {
         setTimeout(() => {
             gameOver = true;
             gameState.gameOver = true;
             gameState.won = true;
             saveGameState();
-            updateStats(true, currentRow + 1);
-            showMessage('🎉 Congratulations!');
+            updateStats(true, guessNumber);
             bounceRow();
             showShareButton();
+            showWinModal(guessNumber);
         }, WORD_LENGTH * 200 + 500);
     } else if (currentRow === MAX_GUESSES - 1) {
         setTimeout(() => {
@@ -193,7 +209,8 @@ async function submitGuess() {
             gameState.won = false;
             saveGameState();
             updateStats(false);
-            showMessage(`The word was ${targetWord}`);
+            showShareButton();
+            showLossModal(targetWord);
         }, WORD_LENGTH * 200 + 500);
     }
 
@@ -220,14 +237,16 @@ async function validateWord(word) {
         const response = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word.toLowerCase()}`);
         const isValid = response.ok;
 
-        // Cache the result
-        validationCache[word] = isValid;
-        localStorage.setItem('wordCache', JSON.stringify(validationCache));
+        // Only cache valid results - don't cache rejections in case of API issues
+        if (isValid) {
+            validationCache[word] = true;
+            localStorage.setItem('wordCache', JSON.stringify(validationCache));
+        }
 
         return isValid;
     } catch (error) {
         console.error('Validation error:', error);
-        // If API fails, reject since it wasn't in local list either
+        // If API fails, don't cache - allow retry
         return false;
     }
 }
@@ -295,11 +314,11 @@ function bounceRow() {
     setTimeout(() => row.classList.remove('bounce'), 600);
 }
 
-function showMessage(msg) {
+function showMessage(msg, persistent = false) {
     const messageEl = document.getElementById('message');
     messageEl.innerHTML = msg;
 
-    if (!msg.includes('loading')) {
+    if (!msg.includes('loading') && !persistent) {
         setTimeout(() => {
             if (messageEl.innerHTML === msg) messageEl.innerHTML = '';
         }, 3000);
@@ -406,10 +425,11 @@ function showShareButton() {
     document.getElementById('shareSection').style.display = 'block';
 }
 
-function shareResults() {
+function shareResults(button) {
     if (!gameState || !gameState.gameOver) return;
 
     const guessCount = gameState.won ? gameState.guesses.length : 'X';
+    const hardIndicator = hardMode ? '*' : '';
     const emoji = gameState.guesses.map(guess => {
         const result = checkGuess(guess);
         return result.map(r => {
@@ -419,14 +439,74 @@ function shareResults() {
         }).join('');
     }).join('\n');
 
-    const text = `Wordle Six ${guessCount}/${MAX_GUESSES}\n\n${emoji}\n\nhttps://wordle-six.tomtom.fyi`;
+    const text = `Wordle Six ${guessCount}/${MAX_GUESSES}${hardIndicator}\n\n${emoji}\n\nhttps://wordle-six.tomtom.fyi`;
 
-    if (navigator.share) {
+    // Only use native share on mobile (touch devices), clipboard everywhere else
+    const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
+    if (isMobile && navigator.share) {
         navigator.share({ text });
     } else {
         navigator.clipboard.writeText(text);
-        showMessage('Copied to clipboard!');
+        // Change button text to show feedback
+        if (button) {
+            const originalText = button.textContent;
+            button.textContent = 'Copied!';
+            setTimeout(() => {
+                button.textContent = originalText;
+            }, 2000);
+        }
     }
+}
+
+// Hard mode functions
+function loadHardMode() {
+    hardMode = localStorage.getItem('hardMode') === 'true';
+    const toggle = document.getElementById('hardModeToggle');
+    if (toggle) {
+        toggle.classList.toggle('active', hardMode);
+    }
+}
+
+function toggleHardMode() {
+    // Don't allow toggling mid-game if guesses have been made
+    if (gameState && gameState.guesses.length > 0 && !gameOver) {
+        showMessage('Cannot change hard mode mid-game!');
+        return;
+    }
+    hardMode = !hardMode;
+    localStorage.setItem('hardMode', hardMode);
+    const toggle = document.getElementById('hardModeToggle');
+    if (toggle) {
+        toggle.classList.toggle('active', hardMode);
+    }
+}
+
+function checkHardMode(guess) {
+    if (!hardMode || !gameState || gameState.guesses.length === 0) {
+        return { valid: true };
+    }
+
+    // Gather all hints from previous guesses
+    for (const prev of gameState.guesses) {
+        const result = checkGuess(prev);
+        for (let i = 0; i < WORD_LENGTH; i++) {
+            if (result[i] === 'correct' && guess[i] !== prev[i]) {
+                return { valid: false, message: `Position ${i + 1} must be ${prev[i]}` };
+            }
+        }
+        for (let i = 0; i < WORD_LENGTH; i++) {
+            if (result[i] === 'present' && !guess.includes(prev[i])) {
+                return { valid: false, message: `Guess must contain ${prev[i]}` };
+            }
+        }
+    }
+
+    return { valid: true };
+}
+
+function showSettings() {
+    document.getElementById('settingsModal').classList.add('show');
 }
 
 // Modal functions
@@ -437,6 +517,17 @@ function showStats() {
 
 function showHelp() {
     document.getElementById('helpModal').classList.add('show');
+}
+
+function showWinModal(guessCount) {
+    document.getElementById('winGuessCount').textContent = guessCount;
+    document.getElementById('guessWord').textContent = guessCount === 1 ? 'guess' : 'guesses';
+    document.getElementById('winModal').classList.add('show');
+}
+
+function showLossModal(word) {
+    document.getElementById('answerReveal').textContent = word;
+    document.getElementById('lossModal').classList.add('show');
 }
 
 function closeModal(modalId) {
