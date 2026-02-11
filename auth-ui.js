@@ -364,9 +364,11 @@ async function saveDisplayName() {
         });
         if (!resp.ok) {
             const errText = await resp.text();
-            btn.textContent = errText.trim() || 'Error';
-            btn.style.color = '#c45';
-            setTimeout(() => { btn.textContent = 'Save'; btn.style.color = ''; }, 3000);
+            const errEl = document.getElementById('displayNameError');
+            errEl.textContent = errText.trim() || 'Error';
+            errEl.style.display = '';
+            btn.textContent = 'Save';
+            setTimeout(() => { errEl.style.display = 'none'; }, 3000);
             return;
         }
         currentUser.display_name = name;
