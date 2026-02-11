@@ -10,7 +10,7 @@ let hardMode = false;
 
 
 // Initialize game
-function init() {
+async function initGame() {
     loadGameState();
     loadHardMode();
     createBoard();
@@ -50,6 +50,57 @@ function init() {
         }
     }
 
+    // If signed in, sync state and stats with server
+    if (typeof currentUser !== 'undefined' && currentUser) {
+        await syncStatsFromServer();
+    }
+    if (typeof currentUser !== 'undefined' && currentUser) {
+        try {
+            const resp = await fetch(`/api/game-state?date=${getDateString()}`);
+            if (resp.ok) {
+                const serverState = await resp.json();
+                if (serverState.guesses && serverState.guesses.length > gameState.guesses.length) {
+                    // Server has more guesses — use server state
+                    gameState.guesses = serverState.guesses;
+                    gameState.gameOver = serverState.gameOver;
+                    gameState.won = serverState.won;
+                    hardMode = serverState.hardMode;
+                    localStorage.setItem('hardMode', hardMode);
+                    currentRow = gameState.guesses.length;
+                    gameOver = gameState.gameOver;
+                    saveGameState();
+
+                    // Re-render board
+                    createBoard();
+                    gameState.guesses.forEach((guess, i) => {
+                        restoreGuess(i, guess);
+                    });
+                    resetKeyboard();
+                    gameState.guesses.forEach(guess => {
+                        const result = checkGuess(guess);
+                        updateKeyboard(guess, result);
+                    });
+
+                    // Update hard mode toggle UI
+                    const toggle = document.getElementById('hardModeToggle');
+                    if (toggle) toggle.classList.toggle('active', hardMode);
+
+                    if (gameOver) {
+                        if (gameState.won) {
+                            showMessage('You already solved today\'s puzzle', true);
+                            showShareButton();
+                        } else {
+                            showMessage(`The word was ${targetWord}`, true);
+                            showShareButton();
+                        }
+                    }
+                }
+            }
+        } catch (e) {
+            // Silent fail — localStorage state is fine
+        }
+    }
+
     // Update timer
     updateTimer();
     setInterval(updateTimer, 1000);
@@ -65,8 +116,7 @@ function startNewGame() {
         date: getDateString(),
         guesses: [],
         gameOver: false,
-        won: false,
-        usedNonHardMode: false
+        won: false
     };
 
     saveGameState();
@@ -76,7 +126,7 @@ function startNewGame() {
 
 function createBoard() {
     const board = document.getElementById('board');
-    board.innerHTML = '';
+    board.textContent = '';
 
     for (let i = 0; i < MAX_GUESSES; i++) {
         const row = document.createElement('div');
@@ -162,11 +212,6 @@ function submitGuess() {
         return;
     }
 
-    // Track if a guess was made without hard mode
-    if (!hardMode) {
-        gameState.usedNonHardMode = true;
-    }
-
     // Save guess
     gameState.guesses.push(guess);
 
@@ -193,10 +238,12 @@ function submitGuess() {
             gameState.gameOver = true;
             gameState.won = true;
             saveGameState();
+            saveProgressToServer();
             updateStats(true, guessNumber);
             bounceRow();
             showShareButton();
             showWinModal(guessNumber);
+            if (typeof submitResultToAPI === 'function') submitResultToAPI(true, guessNumber, hardMode);
         }, WORD_LENGTH * 200 + 500);
     } else if (currentRow === MAX_GUESSES - 1) {
         setTimeout(() => {
@@ -204,15 +251,18 @@ function submitGuess() {
             gameState.gameOver = true;
             gameState.won = false;
             saveGameState();
+            saveProgressToServer();
             updateStats(false);
             showShareButton();
             showLossModal(targetWord);
+            if (typeof submitResultToAPI === 'function') submitResultToAPI(false, null, hardMode);
         }, WORD_LENGTH * 200 + 500);
     }
 
     currentRow++;
     currentGuess = '';
     saveGameState();
+    saveProgressToServer();
 }
 
 
@@ -281,11 +331,11 @@ function bounceRow() {
 
 function showMessage(msg, persistent = false) {
     const messageEl = document.getElementById('message');
-    messageEl.innerHTML = msg;
+    messageEl.textContent = msg;
 
     if (!msg.includes('loading') && !persistent) {
         setTimeout(() => {
-            if (messageEl.innerHTML === msg) messageEl.innerHTML = '';
+            if (messageEl.textContent === msg) messageEl.textContent = '';
         }, 3000);
     }
 }
@@ -302,20 +352,94 @@ function saveGameState() {
     localStorage.setItem('gameState', JSON.stringify(gameState));
 }
 
-function updateStats(won, guesses = null) {
-    const stats = JSON.parse(localStorage.getItem('stats')) || {
-        played: 0,
-        won: 0,
-        currentStreak: 0,
-        maxStreak: 0,
-        distribution: [0, 0, 0, 0, 0, 0],
-        lastDate: null
+function saveProgressToServer() {
+    if (typeof currentUser === 'undefined' || !currentUser || !gameState) return;
+    fetch('/api/save-progress', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            date: gameState.date,
+            guesses: gameState.guesses,
+            hardMode: hardMode,
+            gameOver: gameState.gameOver,
+            won: gameState.won
+        })
+    }).catch(() => {}); // fire-and-forget
+}
+
+async function syncStatsFromServer() {
+    try {
+        const resp = await fetch('/api/user-stats');
+        if (!resp.ok) return;
+        const serverStats = await resp.json();
+
+        // Load hard mode preference from server
+        if (serverStats.hardMode !== undefined) {
+            hardMode = serverStats.hardMode;
+            localStorage.setItem('hardMode', hardMode);
+            const toggle = document.getElementById('hardModeToggle');
+            if (toggle) toggle.classList.toggle('active', hardMode);
+        }
+
+        // Server stats are authoritative — use them if any games recorded
+        if (serverStats.played > 0) {
+            const stats = {
+                played: serverStats.played,
+                won: serverStats.won,
+                playedHard: serverStats.playedHard || 0,
+                wonHard: serverStats.wonHard || 0,
+                currentStreak: serverStats.currentStreak,
+                maxStreak: serverStats.maxStreak,
+                distribution: serverStats.distribution || [0, 0, 0, 0, 0, 0],
+                lastDate: serverStats.lastDate || null
+            };
+            localStorage.setItem('stats', JSON.stringify(stats));
+            updateStatsDisplay();
+        }
+    } catch (e) {
+        // Silent fail
+    }
+}
+
+function saveStatsToServer() {
+    if (typeof currentUser === 'undefined' || !currentUser) return;
+    const stats = JSON.parse(localStorage.getItem('stats'));
+    if (!stats) return;
+    fetch('/api/user-stats', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            played: stats.played,
+            won: stats.won,
+            playedHard: stats.playedHard || 0,
+            wonHard: stats.wonHard || 0,
+            currentStreak: stats.currentStreak,
+            maxStreak: stats.maxStreak,
+            distribution: stats.distribution,
+            lastDate: stats.lastDate || '',
+            hardMode: hardMode
+        })
+    }).catch(() => {});
+}
+
+function getDefaultStats() {
+    return {
+        played: 0, won: 0, playedHard: 0, wonHard: 0,
+        currentStreak: 0, maxStreak: 0,
+        distribution: [0, 0, 0, 0, 0, 0], lastDate: null
     };
+}
+
+function updateStats(won, guesses = null) {
+    const stats = JSON.parse(localStorage.getItem('stats')) || getDefaultStats();
+    if (stats.playedHard === undefined) { stats.playedHard = 0; stats.wonHard = 0; }
 
     stats.played++;
+    if (hardMode) stats.playedHard++;
 
     if (won) {
         stats.won++;
+        if (hardMode) stats.wonHard++;
         stats.distribution[guesses - 1]++;
 
         // Update streak
@@ -338,27 +462,37 @@ function updateStats(won, guesses = null) {
     stats.lastDate = getDateString();
     localStorage.setItem('stats', JSON.stringify(stats));
     updateStatsDisplay();
+    saveStatsToServer();
 }
 
 function updateStatsDisplay() {
-    const stats = JSON.parse(localStorage.getItem('stats')) || {
-        played: 0,
-        won: 0,
-        currentStreak: 0,
-        maxStreak: 0,
-        distribution: [0, 0, 0, 0, 0, 0]
-    };
+    const stats = JSON.parse(localStorage.getItem('stats')) || getDefaultStats();
+    if (stats.playedHard === undefined) { stats.playedHard = 0; stats.wonHard = 0; }
 
-    document.getElementById('gamesPlayed').textContent = stats.played;
+    const playedEl = document.getElementById('gamesPlayed');
+    playedEl.textContent = stats.played;
+    if (stats.playedHard > 0) {
+        const sub = document.createElement('span');
+        sub.className = 'stat-hard-sub';
+        sub.textContent = ` (${stats.playedHard}H)`;
+        playedEl.appendChild(sub);
+    }
+
     document.getElementById('currentStreak').textContent = stats.currentStreak;
     document.getElementById('maxStreak').textContent = stats.maxStreak;
 
-    const winRate = stats.played > 0 ? Math.round((stats.won / stats.played) * 100) : 0;
-    document.getElementById('winRate').textContent = winRate;
+    const gamesWonEl = document.getElementById('gamesWon');
+    gamesWonEl.textContent = stats.won;
+    if (stats.wonHard > 0) {
+        const sub = document.createElement('span');
+        sub.className = 'stat-hard-sub';
+        sub.textContent = ` (${stats.wonHard}H)`;
+        gamesWonEl.appendChild(sub);
+    }
 
     // Update distribution chart
     const chart = document.getElementById('distributionChart');
-    chart.innerHTML = '';
+    chart.textContent = '';
 
     const maxCount = Math.max(...stats.distribution, 1);
     stats.distribution.forEach((count, i) => {
@@ -434,34 +568,70 @@ function loadHardMode() {
 }
 
 function toggleHardMode() {
-    if (isHardModeLocked()) {
-        return;
+    if (gameOver) return;
+
+    if (!hardMode && gameState && gameState.guesses.length > 0) {
+        // Trying to enable — check if all existing guesses are hard-mode-valid
+        const check = canEnableHardMode();
+        if (!check.valid) {
+            const warning = document.getElementById('hardModeWarning');
+            if (warning) {
+                warning.textContent = check.message;
+                warning.style.display = 'block';
+            }
+            return;
+        }
     }
+
+    // Clear warning on successful toggle
+    const warning = document.getElementById('hardModeWarning');
+    if (warning) warning.style.display = 'none';
+
     hardMode = !hardMode;
     localStorage.setItem('hardMode', hardMode);
     const toggle = document.getElementById('hardModeToggle');
     if (toggle) {
         toggle.classList.toggle('active', hardMode);
     }
+    saveProgressToServer();
+    saveStatsToServer();
 }
 
-function isHardModeLocked() {
-    // Lock hard mode if any guess was made with it off
-    return gameState && gameState.usedNonHardMode && !gameOver;
+function canEnableHardMode() {
+    if (!gameState || gameState.guesses.length <= 1) return { valid: true };
+
+    const allGuesses = [...gameState.guesses];
+    const savedGuesses = gameState.guesses;
+    const savedHardMode = hardMode;
+
+    hardMode = true;
+    for (let i = 1; i < allGuesses.length; i++) {
+        gameState.guesses = allGuesses.slice(0, i);
+        const result = checkHardMode(allGuesses[i]);
+        if (!result.valid) {
+            gameState.guesses = savedGuesses;
+            hardMode = savedHardMode;
+            return { valid: false, message: `Guess ${i + 1} ("${allGuesses[i]}") would violate hard mode: ${result.message.toLowerCase()}` };
+        }
+    }
+    gameState.guesses = savedGuesses;
+    hardMode = savedHardMode;
+    return { valid: true };
 }
 
 function updateHardModeUI() {
     const toggle = document.getElementById('hardModeToggle');
     const warning = document.getElementById('hardModeWarning');
-    const locked = isHardModeLocked();
+    const disabled = gameOver;
 
     if (toggle) {
-        toggle.disabled = locked;
-        toggle.style.opacity = locked ? '0.4' : '';
-        toggle.style.cursor = locked ? 'not-allowed' : '';
+        toggle.disabled = disabled;
+        toggle.style.opacity = disabled ? '0.4' : '';
+        toggle.style.cursor = disabled ? 'not-allowed' : '';
     }
     if (warning) {
-        warning.style.display = locked ? 'block' : 'none';
+        // Hide warning when opening settings fresh; it gets shown dynamically on error
+        warning.style.display = 'none';
     }
 }
 
@@ -534,6 +704,7 @@ function checkHardMode(guess) {
 
 function showSettings() {
     updateHardModeUI();
+    if (typeof updateSettingsForAuth === 'function') updateSettingsForAuth();
     document.getElementById('settingsModal').classList.add('show');
 }
 
@@ -580,6 +751,3 @@ function updateTimer() {
         timer.textContent = `Next word in ${timeStr}`;
     }
 }
-
-// Initialize on load
-document.addEventListener('DOMContentLoaded', init);
