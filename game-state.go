@@ -73,11 +73,13 @@ func handleSaveProgress(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var body struct {
-		Date     string   `json:"date"`
-		Guesses  []string `json:"guesses"`
-		HardMode bool     `json:"hardMode"`
-		GameOver bool     `json:"gameOver"`
-		Won      bool     `json:"won"`
+		Date       string   `json:"date"`
+		Guesses    []string `json:"guesses"`
+		HardMode   bool     `json:"hardMode"`
+		GameOver   bool     `json:"gameOver"`
+		Won        bool     `json:"won"`
+		ClientTime string   `json:"client_time"`
+		TzOffset   *int     `json:"tz_offset"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
@@ -107,9 +109,20 @@ func handleSaveProgress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Timezone manipulation check
+	tzWarning := false
+	if body.ClientTime != "" && body.TzOffset != nil {
+		ip := getClientIP(r)
+		tzWarning = checkTimezone(user.ID, body.ClientTime, *body.TzOffset, ip, "save-progress")
+	}
+
 	log.Printf("POST /api/save-progress: saved for user %d, date=%s, %d guesses", user.ID, body.Date, len(body.Guesses))
 	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(`{"ok":true}`))
+	resp := map[string]interface{}{"ok": true}
+	if tzWarning {
+		resp["tz_warning"] = true
+	}
+	json.NewEncoder(w).Encode(resp)
 }
 
 type UserStats struct {

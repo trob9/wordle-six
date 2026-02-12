@@ -240,6 +240,16 @@ fetch('/api/admin/ban',{method:'POST',headers:{'Content-Type':'application/json'
 - Names restricted to letters, numbers, spaces, hyphens, underscores (1-20 chars)
 - Banned users see an "Account Suspended" screen and are excluded from the leaderboard
 
+## Anti-Cheat
+
+Timezone manipulation detection prevents users from changing their device clock to access future or past puzzles.
+
+- **Timezone drift detection** — If a user's timezone offset changes within a 30-minute server-time window, it's flagged (legitimate travel doesn't produce sub-30min timezone changes)
+- **IP geolocation cross-reference** — Client-reported timezone offset is compared against the expected timezone for the user's IP address (via `ip-api.com`, cached 24h per IP). Mismatches exceeding 2 hours are flagged.
+- **Impossible date check** — If client time differs from server UTC by more than 26 hours (no timezone on earth exceeds UTC+14), it's flagged immediately.
+
+Suspicious activity is logged to `/data/cheatlog.txt` with timestamp, user ID, display name, detection reason, client time, timezone offset, IP, and endpoint. Flagged users receive an in-game warning. Repeated violations may result in account suspension.
+
 ## Deployment
 
 Dockerized multi-stage build (Go 1.25-alpine builder, alpine 3.20 runtime). SQLite database persisted in a Docker volume (`wordle-six-data:/data`).

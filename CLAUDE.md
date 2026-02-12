@@ -18,6 +18,7 @@ Wordle Six is a daily 6-letter word puzzle game. Go backend + vanilla JS fronten
 | `db.go` | SQLite init (WAL mode), table creation, migrations, user CRUD. DB path: `/data/wordle-six.db` (Docker volume). |
 | `game-state.go` | Game progress sync (save/load guesses), user stats sync, display name update. |
 | `leaderboard.go` | Leaderboard query (weighted avg with hard mode bonus), game result submission, streak computation. |
+| `cheatdetect.go` | Timezone manipulation detection. Checks for tz drift, impossible dates, IP geolocation mismatch. Logs to `/data/cheatlog.txt`. Uses `ip-api.com` with 24h in-memory cache per IP. |
 | `go.mod` | Dependencies: `go-sqlite3`, `golang-jwt/jwt/v5` |
 | `Dockerfile` | Multi-stage: `golang:1.25-alpine` builder → `alpine:3.20` runtime. Static files copied to `/app/static/`. |
 
@@ -68,6 +69,12 @@ Wordle Six is a daily 6-letter word puzzle game. Go backend + vanilla JS fronten
 - `last_date` TEXT — for streak calculation
 - `hard_mode` BOOLEAN — user's hard mode preference
 - Updated after game completion and hard mode toggle
+
+### `tz_events`
+- Anti-cheat timezone event log. One row per server request that includes timezone data.
+- `user_id` INTEGER, `server_utc` DATETIME, `client_time` TEXT (ISO 8601), `tz_offset` INTEGER (JS getTimezoneOffset, minutes), `ip` TEXT, `endpoint` TEXT
+- Indexed on `(user_id, server_utc DESC)` for recent event lookups
+- Cheat log file: `/data/cheatlog.txt` (appended when suspicious activity detected)
 
 ### Migrations
 `runMigrations()` in `db.go` handles schema evolution via idempotent `ALTER TABLE` statements (errors from duplicate columns are silently ignored).

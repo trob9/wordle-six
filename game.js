@@ -353,6 +353,8 @@ function saveGameState() {
     localStorage.setItem('gameState', JSON.stringify(gameState));
 }
 
+let tzWarningShown = false;
+
 function saveProgressToServer() {
     if (typeof currentUser === 'undefined' || !currentUser || !gameState) return;
     fetch('/api/save-progress', {
@@ -363,9 +365,19 @@ function saveProgressToServer() {
             guesses: gameState.guesses,
             hardMode: hardMode,
             gameOver: gameState.gameOver,
-            won: gameState.won
+            won: gameState.won,
+            client_time: new Date().toISOString(),
+            tz_offset: new Date().getTimezoneOffset()
         })
-    }).catch(() => {}); // fire-and-forget
+    }).then(r => r.json()).then(data => {
+        if (data.tz_warning) showTzWarning();
+    }).catch(() => {});
+}
+
+function showTzWarning() {
+    if (tzWarningShown) return;
+    tzWarningShown = true;
+    showMessage('Timezone manipulation detected and logged for review.', true);
 }
 
 async function syncStatsFromServer() {
