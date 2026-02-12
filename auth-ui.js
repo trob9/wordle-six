@@ -172,7 +172,7 @@ function renderTopPlayers(entries) {
 
         const avg = document.createElement('span');
         avg.className = 'top-player-avg';
-        avg.textContent = entry.weighted_avg.toFixed(2);
+        avg.textContent = entry.true_avg.toFixed(2);
         div.appendChild(avg);
 
         el.appendChild(div);
@@ -268,7 +268,7 @@ function renderLeaderboard(entries) {
         statsDiv.className = 'lb-stats';
 
         [
-            { value: e.weighted_avg.toFixed(2), label: 'avg' },
+            { value: e.true_avg.toFixed(2), label: 'avg' },
             { value: Math.round(e.win_rate * 100) + '%', label: 'win' },
             { value: e.games_played, label: 'games' }
         ].forEach(s => {
