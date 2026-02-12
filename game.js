@@ -624,7 +624,7 @@ function canEnableHardMode() {
         if (!result.valid) {
             gameState.guesses = savedGuesses;
             hardMode = savedHardMode;
-            return { valid: false, message: `Guess ${i + 1} ("${allGuesses[i]}") would violate hard mode: ${result.message.toLowerCase()}` };
+            return { valid: false, message: `Can't enable — previous guesses don't meet hard mode rules` };
         }
     }
     gameState.guesses = savedGuesses;
