@@ -12,6 +12,7 @@ type LeaderboardEntry struct {
 	DisplayName string  `json:"display_name"`
 	AvatarURL   string  `json:"avatar_url,omitempty"`
 	WeightedAvg float64 `json:"weighted_avg"`
+	TrueAvg     float64 `json:"true_avg"`
 	WinRate     float64 `json:"win_rate"`
 	GamesPlayed int     `json:"games_played"`
 	Streak      int     `json:"current_streak"`
@@ -42,6 +43,7 @@ func handleGetLeaderboard(w http.ResponseWriter, r *http.Request) {
 					ELSE 7.0
 				END
 			) / COUNT(*) AS weighted_avg,
+			CAST(SUM(CASE WHEN gr.won THEN gr.guesses ELSE 7 END) AS REAL) / COUNT(*) AS true_avg,
 			CAST(SUM(CASE WHEN gr.won THEN 1 ELSE 0 END) AS REAL) / COUNT(*) AS win_rate,
 			COUNT(*) AS games_played,
 			SUM(CASE WHEN gr.won AND gr.hard_mode THEN 1 ELSE 0 END) AS hard_mode_wins
@@ -63,7 +65,7 @@ func handleGetLeaderboard(w http.ResponseWriter, r *http.Request) {
 	rank := 1
 	for rows.Next() {
 		var e LeaderboardEntry
-		err := rows.Scan(&e.UserID, &e.DisplayName, &e.AvatarURL, &e.WeightedAvg, &e.WinRate, &e.GamesPlayed, &e.HardModeWins)
+		err := rows.Scan(&e.UserID, &e.DisplayName, &e.AvatarURL, &e.WeightedAvg, &e.TrueAvg, &e.WinRate, &e.GamesPlayed, &e.HardModeWins)
 		if err != nil {
 			continue
 		}
