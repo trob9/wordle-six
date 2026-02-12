@@ -95,10 +95,12 @@ func handleSubmitResult(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var body struct {
-		Date     string `json:"date"`
-		Won      bool   `json:"won"`
-		Guesses  *int   `json:"guesses"`
-		HardMode bool   `json:"hard_mode"`
+		Date       string `json:"date"`
+		Won        bool   `json:"won"`
+		Guesses    *int   `json:"guesses"`
+		HardMode   bool   `json:"hard_mode"`
+		ClientTime string `json:"client_time"`
+		TzOffset   *int   `json:"tz_offset"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
@@ -121,8 +123,19 @@ func handleSubmitResult(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Timezone manipulation check
+	tzWarning := false
+	if body.ClientTime != "" && body.TzOffset != nil {
+		ip := getClientIP(r)
+		tzWarning = checkTimezone(user.ID, body.ClientTime, *body.TzOffset, ip, "result")
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(`{"ok":true}`))
+	resp := map[string]interface{}{"ok": true}
+	if tzWarning {
+		resp["tz_warning"] = true
+	}
+	json.NewEncoder(w).Encode(resp)
 }
 
 func computeStreak(userID int64) int {

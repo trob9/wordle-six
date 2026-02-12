@@ -398,16 +398,20 @@ function updateSettingsForAuth() {
 async function submitResultToAPI(won, guesses, hardModeActive) {
     if (!currentUser) return;
     try {
-        await fetch('/api/result', {
+        const resp = await fetch('/api/result', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 date: getDateString(),
                 won: won,
                 guesses: won ? guesses : null,
-                hard_mode: hardModeActive
+                hard_mode: hardModeActive,
+                client_time: new Date().toISOString(),
+                tz_offset: new Date().getTimezoneOffset()
             })
         });
+        const data = await resp.json();
+        if (data.tz_warning && typeof showTzWarning === 'function') showTzWarning();
         loadTopPlayers();
     } catch (e) {
         // Silent fail
