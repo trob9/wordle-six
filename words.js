@@ -117,16 +117,11 @@ function shuffleArray(array, seed) {
     return shuffled;
 }
 
-// Get current date/time in Melbourne timezone
-function getMelbourneNow() {
-    return new Date(new Date().toLocaleString('en-US', { timeZone: 'Australia/Melbourne' }));
-}
-
 // Get deterministic word index based on date
 // Uses a shuffled permutation so every word is used exactly once
 // before any word repeats (~500-day cycle with no close repeats)
 function getDailyWordIndex() {
-    const now = getMelbourneNow();
+    const now = new Date();
     const start = new Date(2024, 0, 1); // Jan 1, 2024 as epoch
     const daysSinceStart = Math.floor((now - start) / (1000 * 60 * 60 * 24));
 
@@ -146,9 +141,9 @@ function getTodaysWord() {
     return DAILY_WORDS[index];
 }
 
-// Get date string for tracking (YYYY-MM-DD) in Melbourne timezone
+// Get date string for tracking (YYYY-MM-DD) in user's local timezone
 function getDateString() {
-    const now = getMelbourneNow();
+    const now = new Date();
     const y = now.getFullYear();
     const m = String(now.getMonth() + 1).padStart(2, '0');
     const d = String(now.getDate()).padStart(2, '0');
@@ -157,7 +152,7 @@ function getDateString() {
 
 // Calculate time until next word (midnight)
 function getTimeUntilNextWord() {
-    const now = getMelbourneNow();
+    const now = new Date();
     const tomorrow = new Date(now);
     tomorrow.setDate(tomorrow.getDate() + 1);
     tomorrow.setHours(0, 0, 0, 0);
