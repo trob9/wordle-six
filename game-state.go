@@ -109,6 +109,20 @@ func handleSaveProgress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// If game is over, ensure a game_results entry exists (don't rely on client)
+	if body.GameOver {
+		guessCount := len(body.Guesses)
+		var guessPtr *int
+		if body.Won && guessCount > 0 {
+			guessPtr = &guessCount
+		}
+		if err := insertGameResult(user.ID, body.Date, body.Won, guessPtr, body.HardMode); err != nil {
+			log.Printf("POST /api/save-progress: auto-insert game_result failed: %v", err)
+		} else {
+			log.Printf("POST /api/save-progress: auto-inserted game_result for user %d, date=%s, won=%v, guesses=%d", user.ID, body.Date, body.Won, guessCount)
+		}
+	}
+
 	// Timezone manipulation check
 	tzWarning := false
 	if body.ClientTime != "" && body.TzOffset != nil {
