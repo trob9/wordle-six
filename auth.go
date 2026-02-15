@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -119,16 +120,24 @@ func handleAuthStart(w http.ResponseWriter, r *http.Request) {
 
 func handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 	provider := r.PathValue("provider")
+	log.Printf("OAuth callback: provider=%s", provider)
 
 	// Verify state
 	stateCookie, err := r.Cookie("oauth_state")
-	if err != nil || stateCookie.Value != r.URL.Query().Get("state") {
+	if err != nil {
+		log.Printf("OAuth callback: oauth_state cookie missing: %v", err)
+		http.Error(w, "Invalid state parameter", http.StatusBadRequest)
+		return
+	}
+	if stateCookie.Value != r.URL.Query().Get("state") {
+		log.Printf("OAuth callback: state mismatch: cookie=%s url=%s", stateCookie.Value, r.URL.Query().Get("state"))
 		http.Error(w, "Invalid state parameter", http.StatusBadRequest)
 		return
 	}
 
 	code := r.URL.Query().Get("code")
 	if code == "" {
+		log.Printf("OAuth callback: no code parameter in URL")
 		http.Error(w, "No code provided", http.StatusBadRequest)
 		return
 	}
@@ -156,16 +165,25 @@ func handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
+		log.Printf("OAuth callback: token exchange HTTP error: %v", err)
 		http.Error(w, "Token exchange failed", http.StatusInternalServerError)
 		return
 	}
 	defer resp.Body.Close()
 
 	var tokenResp map[string]interface{}
-	json.NewDecoder(resp.Body).Decode(&tokenResp)
+	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
+		log.Printf("OAuth callback: failed to decode token response (status %d): %v", resp.StatusCode, err)
+		http.Error(w, "Token exchange failed", http.StatusInternalServerError)
+		return
+	}
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("OAuth callback: token endpoint returned %d: %v", resp.StatusCode, tokenResp)
+	}
 
 	accessToken, _ := tokenResp["access_token"].(string)
 	if accessToken == "" {
+		log.Printf("OAuth callback: no access_token in response: %v", tokenResp)
 		http.Error(w, "No access token received", http.StatusInternalServerError)
 		return
 	}
@@ -177,8 +195,12 @@ func handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 
 	userResp, err := http.DefaultClient.Do(userReq)
 	if err != nil {
+		log.Printf("OAuth callback: user info fetch error: %v", err)
 		http.Error(w, "Failed to fetch user info", http.StatusInternalServerError)
 		return
+	}
+	if userResp.StatusCode != http.StatusOK {
+		log.Printf("OAuth callback: user info endpoint returned %d", userResp.StatusCode)
 	}
 	defer userResp.Body.Close()
 
@@ -206,8 +228,11 @@ func handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 		avatarURL, _ = userInfo["picture"].(string)
 	}
 
+	log.Printf("OAuth callback: provider=%s user=%s id=%s", provider, displayName, providerID)
+
 	user, err := upsertUser(provider, providerID, displayName, avatarURL)
 	if err != nil {
+		log.Printf("OAuth callback: upsertUser failed: %v", err)
 		http.Error(w, "Failed to create user", http.StatusInternalServerError)
 		return
 	}
@@ -219,9 +244,12 @@ func handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 	})
 	tokenString, err := token.SignedString(jwtSecret)
 	if err != nil {
+		log.Printf("OAuth callback: JWT signing failed: %v", err)
 		http.Error(w, "Failed to create session", http.StatusInternalServerError)
 		return
 	}
+
+	log.Printf("OAuth callback: success, setting session cookie for user %d (%s)", user.ID, displayName)
 
 	http.SetCookie(w, &http.Cookie{
 		Name:     "session",
@@ -292,6 +320,7 @@ func getUserFromRequest(r *http.Request) *User {
 		return jwtSecret, nil
 	})
 	if err != nil || !token.Valid {
+		log.Printf("Session: invalid JWT: %v", err)
 		return nil
 	}
 

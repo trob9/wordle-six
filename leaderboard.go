@@ -28,30 +28,56 @@ func handleGetLeaderboard(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Weighted average guesses with hard mode 10% bonus.
-	// Losses count as 7. Min 5 games.
+	// Bayesian weighted average: pulls players with few games toward the global mean.
+	// Formula: bayesian_avg = (C * global_mean + player_sum) / (C + games_played)
+	// C = 10 (confidence parameter). Higher C = more games needed to diverge from mean.
+	// Hard mode wins get 10% bonus (guesses * 0.9). Losses count as 7.
 	// Streak computed in Go since SQL window-based streak is complex in SQLite.
 	rows, err := db.Query(`
-		SELECT
-			u.id AS user_id,
-			COALESCE(u.custom_name, u.display_name),
-			COALESCE(u.avatar_url, ''),
-			SUM(
+		WITH global AS (
+			SELECT SUM(
 				CASE
 					WHEN gr.won AND gr.hard_mode THEN gr.guesses * 0.9
 					WHEN gr.won THEN gr.guesses
 					ELSE 7.0
 				END
-			) / COUNT(*) AS weighted_avg,
-			CAST(SUM(CASE WHEN gr.won THEN gr.guesses ELSE 7 END) AS REAL) / COUNT(*) AS true_avg,
-			CAST(SUM(CASE WHEN gr.won THEN 1 ELSE 0 END) AS REAL) / COUNT(*) AS win_rate,
-			COUNT(*) AS games_played,
-			SUM(CASE WHEN gr.won AND gr.hard_mode THEN 1 ELSE 0 END) AS hard_mode_wins
-		FROM users u
-		JOIN game_results gr ON gr.user_id = u.id
-		WHERE u.banned = FALSE
-		GROUP BY u.id
-		HAVING COUNT(*) >= 1
+			) / COUNT(*) AS mean
+			FROM game_results gr
+			JOIN users u ON u.id = gr.user_id
+			WHERE u.banned = FALSE
+		),
+		player AS (
+			SELECT
+				u.id AS user_id,
+				COALESCE(u.custom_name, u.display_name) AS display_name,
+				COALESCE(u.avatar_url, '') AS avatar_url,
+				SUM(
+					CASE
+						WHEN gr.won AND gr.hard_mode THEN gr.guesses * 0.9
+						WHEN gr.won THEN gr.guesses
+						ELSE 7.0
+					END
+				) AS score_sum,
+				CAST(SUM(CASE WHEN gr.won THEN gr.guesses ELSE 7 END) AS REAL) / COUNT(*) AS true_avg,
+				CAST(SUM(CASE WHEN gr.won THEN 1 ELSE 0 END) AS REAL) / COUNT(*) AS win_rate,
+				COUNT(*) AS games_played,
+				SUM(CASE WHEN gr.won AND gr.hard_mode THEN 1 ELSE 0 END) AS hard_mode_wins
+			FROM users u
+			JOIN game_results gr ON gr.user_id = u.id
+			WHERE u.banned = FALSE
+			GROUP BY u.id
+			HAVING COUNT(*) >= 1
+		)
+		SELECT
+			p.user_id,
+			p.display_name,
+			p.avatar_url,
+			(10.0 * g.mean + p.score_sum) / (10.0 + p.games_played) AS weighted_avg,
+			p.true_avg,
+			p.win_rate,
+			p.games_played,
+			p.hard_mode_wins
+		FROM player p, global g
 		ORDER BY weighted_avg ASC, win_rate DESC, games_played DESC
 		LIMIT ?
 	`, limit)
