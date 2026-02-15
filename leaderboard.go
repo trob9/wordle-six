@@ -39,7 +39,7 @@ func handleGetLeaderboard(w http.ResponseWriter, r *http.Request) {
 				CASE
 					WHEN gr.won AND gr.hard_mode THEN gr.guesses * 0.9
 					WHEN gr.won THEN gr.guesses
-					ELSE 7.0
+					ELSE 8.0
 				END
 			) / COUNT(*) AS mean
 			FROM game_results gr
@@ -55,10 +55,10 @@ func handleGetLeaderboard(w http.ResponseWriter, r *http.Request) {
 					CASE
 						WHEN gr.won AND gr.hard_mode THEN gr.guesses * 0.9
 						WHEN gr.won THEN gr.guesses
-						ELSE 7.0
+						ELSE 8.0
 					END
 				) AS score_sum,
-				CAST(SUM(CASE WHEN gr.won THEN gr.guesses ELSE 7 END) AS REAL) / COUNT(*) AS true_avg,
+				CAST(SUM(CASE WHEN gr.won THEN gr.guesses ELSE 8 END) AS REAL) / COUNT(*) AS true_avg,
 				CAST(SUM(CASE WHEN gr.won THEN 1 ELSE 0 END) AS REAL) / COUNT(*) AS win_rate,
 				COUNT(*) AS games_played,
 				SUM(CASE WHEN gr.won AND gr.hard_mode THEN 1 ELSE 0 END) AS hard_mode_wins
