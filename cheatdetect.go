@@ -91,7 +91,7 @@ func checkTimezone(userID int64, clientTime string, tzOffset int, ip string, end
 
 		log.Printf("cheatdetect: %s", logEntry)
 
-		f, err := os.OpenFile("/data/cheatlog.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		f, err := os.OpenFile("/data/cheatlog.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 		if err == nil {
 			f.WriteString(logEntry)
 			f.Close()
@@ -112,6 +112,11 @@ func isPrivateIP(ipStr string) bool {
 	privateRanges := []string{
 		"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16",
 		"127.0.0.0/8", "169.254.0.0/16", "0.0.0.0/8",
+		"100.64.0.0/10",  // CGNAT / Tailscale
+		"192.0.0.0/24",   // IETF protocol assignments
+		"192.0.2.0/24",   // TEST-NET-1
+		"198.18.0.0/15",  // Benchmarking
+		"240.0.0.0/4",    // Reserved
 		"::1/128", "fc00::/7", "fe80::/10",
 	}
 	for _, cidr := range privateRanges {

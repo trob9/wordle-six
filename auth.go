@@ -266,7 +266,7 @@ func handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 	// Create JWT
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"sub": user.ID,
-		"exp": time.Now().Add(30 * 24 * time.Hour).Unix(),
+		"exp": time.Now().Add(7 * 24 * time.Hour).Unix(),
 	})
 	tokenString, err := token.SignedString(jwtSecret)
 	if err != nil {
@@ -281,7 +281,7 @@ func handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 		Name:     "session",
 		Value:    tokenString,
 		Path:     "/",
-		MaxAge:   30 * 24 * 60 * 60,
+		MaxAge:   7 * 24 * 60 * 60,
 		HttpOnly: true,
 		Secure:   true,
 		SameSite: http.SameSiteLaxMode,

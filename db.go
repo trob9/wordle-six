@@ -103,6 +103,7 @@ type User struct {
 	CustomName  *string `json:"custom_name,omitempty"`
 	AvatarURL   string  `json:"avatar_url,omitempty"`
 	Banned      bool    `json:"-"`
+	IsAdmin     bool    `json:"-"`
 	IsNew       bool    `json:"is_new,omitempty"`
 }
 
@@ -138,8 +139,8 @@ func upsertUser(provider, providerID, displayName, avatarURL string) (*User, err
 func getUserByID(id int64) (*User, error) {
 	u := &User{}
 	var customName *string
-	err := db.QueryRow("SELECT id, provider, provider_id, display_name, custom_name, COALESCE(avatar_url, ''), banned FROM users WHERE id = ?", id).
-		Scan(&u.ID, &u.Provider, &u.ProviderID, &u.DisplayName, &customName, &u.AvatarURL, &u.Banned)
+	err := db.QueryRow("SELECT id, provider, provider_id, display_name, custom_name, COALESCE(avatar_url, ''), banned, COALESCE(is_admin, FALSE) FROM users WHERE id = ?", id).
+		Scan(&u.ID, &u.Provider, &u.ProviderID, &u.DisplayName, &customName, &u.AvatarURL, &u.Banned, &u.IsAdmin)
 	if err != nil {
 		return nil, err
 	}
@@ -163,6 +164,9 @@ func runMigrations() error {
 	db.Exec("ALTER TABLE users ADD COLUMN banned BOOLEAN NOT NULL DEFAULT FALSE")
 	db.Exec("ALTER TABLE user_stats ADD COLUMN played_hard INTEGER NOT NULL DEFAULT 0")
 	db.Exec("ALTER TABLE user_stats ADD COLUMN won_hard INTEGER NOT NULL DEFAULT 0")
+	db.Exec("ALTER TABLE users ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT FALSE")
+	// Bootstrap: first registered user (ID 1) gets admin
+	db.Exec("UPDATE users SET is_admin = TRUE WHERE id = 1 AND is_admin = FALSE")
 	return nil
 }
 

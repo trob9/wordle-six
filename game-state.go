@@ -325,10 +325,10 @@ func handleUpdateDisplayName(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{"ok":true}`))
 }
 
-// Admin: ban/unban a user. Only user ID 1 (first registered user) can do this.
+// Admin: ban/unban a user.
 func handleBanUser(w http.ResponseWriter, r *http.Request) {
 	admin := getUserFromRequest(r)
-	if admin == nil || admin.ID != 1 {
+	if admin == nil || !admin.IsAdmin {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
@@ -364,7 +364,7 @@ func handleBanUser(w http.ResponseWriter, r *http.Request) {
 
 func handleListUsers(w http.ResponseWriter, r *http.Request) {
 	admin := getUserFromRequest(r)
-	if admin == nil || admin.ID != 1 {
+	if admin == nil || !admin.IsAdmin {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
