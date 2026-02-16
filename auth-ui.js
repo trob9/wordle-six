@@ -394,6 +394,24 @@ function updateSettingsForAuth() {
     }
 }
 
+// Wire up UI event listeners (replaces inline onclick handlers for CSP compliance)
+document.getElementById('helpBtn').addEventListener('click', showHelp);
+document.getElementById('leaderboardBtn').addEventListener('click', showLeaderboard);
+document.getElementById('settingsBtn').addEventListener('click', showSettings);
+document.getElementById('statsBtn').addEventListener('click', showStats);
+document.getElementById('hardModeToggle').addEventListener('click', toggleHardMode);
+document.getElementById('displayNameSave').addEventListener('click', saveDisplayName);
+document.getElementById('welcomePlayBtn').addEventListener('click', saveWelcomeName);
+document.querySelectorAll('[data-close-modal]').forEach(btn => {
+    btn.addEventListener('click', () => closeModal(btn.dataset.closeModal));
+});
+document.querySelectorAll('.view-stats-btn').forEach(btn => {
+    btn.addEventListener('click', showStats);
+});
+document.querySelectorAll('.share-results-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => shareResults(e.currentTarget));
+});
+
 // Submit result to API after game ends
 async function submitResultToAPI(won, guesses, hardModeActive) {
     if (!currentUser) return;

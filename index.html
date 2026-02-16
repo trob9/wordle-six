@@ -1024,8 +1024,8 @@
         <header class="header">
             <div class="header-top">
                 <div class="header-actions">
-                    <button class="icon-btn" onclick="showHelp()" aria-label="How to play">?</button>
-                    <button class="icon-btn" onclick="showLeaderboard()" aria-label="Leaderboard">
+                    <button class="icon-btn" id="helpBtn" aria-label="How to play">?</button>
+                    <button class="icon-btn" id="leaderboardBtn" aria-label="Leaderboard">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/>
                             <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
@@ -1038,13 +1038,13 @@
                 </div>
                 <h1 class="logo">Wordle <span>Six</span></h1>
                 <div class="header-actions">
-                    <button class="icon-btn" onclick="showSettings()" aria-label="Settings">
+                    <button class="icon-btn" id="settingsBtn" aria-label="Settings">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <circle cx="12" cy="12" r="3"/>
                             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
                         </svg>
                     </button>
-                    <button class="icon-btn" onclick="showStats()" aria-label="Statistics">
+                    <button class="icon-btn" id="statsBtn" aria-label="Statistics">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
                             <rect x="3" y="12" width="4" height="9"/>
                             <rect x="10" y="6" width="4" height="15"/>
@@ -1116,7 +1116,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h2 class="modal-title">Leaderboard</h2>
-                <button class="close-btn" onclick="closeModal('leaderboardModal')">&times;</button>
+                <button class="close-btn" data-close-modal="leaderboardModal">&times;</button>
             </div>
             <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem;">Ranked by weighted average guesses. Hard mode wins get a 10% bonus.</p>
             <div class="leaderboard-list" id="leaderboardList">
@@ -1130,8 +1130,8 @@
         <div class="modal-content win-modal-content">
             <div class="win-message" style="margin-top: 0.5rem;">Well done</div>
             <div class="win-subtext">Solved in <span id="winGuessCount">-</span> <span id="guessWord">guesses</span></div>
-            <button class="share-btn" onclick="shareResults(this)">Share Results</button>
-            <button class="share-btn secondary" onclick="closeModal('winModal'); showStats();">View Statistics</button>
+            <button class="share-btn share-results-btn">Share Results</button>
+            <button class="share-btn secondary view-stats-btn" data-close-modal="winModal">View Statistics</button>
         </div>
     </div>
 
@@ -1141,8 +1141,8 @@
             <div class="win-message" style="margin-top: 0.5rem;">Better luck tomorrow</div>
             <div class="win-subtext">The word was</div>
             <div class="answer-reveal" id="answerReveal">ANSWER</div>
-            <button class="share-btn" onclick="shareResults(this)">Share Results</button>
-            <button class="share-btn secondary" onclick="closeModal('lossModal'); showStats();">View Statistics</button>
+            <button class="share-btn share-results-btn">Share Results</button>
+            <button class="share-btn secondary view-stats-btn" data-close-modal="lossModal">View Statistics</button>
         </div>
     </div>
 
@@ -1151,7 +1151,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h2 class="modal-title">Statistics</h2>
-                <button class="close-btn" onclick="closeModal('statsModal')">&times;</button>
+                <button class="close-btn" data-close-modal="statsModal">&times;</button>
             </div>
             <div class="stats-grid">
                 <div class="stat">
@@ -1176,7 +1176,7 @@
                 <div id="distributionChart"></div>
             </div>
             <div class="share-section" id="shareSection" style="display: none;">
-                <button class="share-btn" onclick="shareResults(this)">Share Results</button>
+                <button class="share-btn share-results-btn">Share Results</button>
             </div>
             <div class="timer" id="nextWordTimer"></div>
         </div>
@@ -1187,7 +1187,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h2 class="modal-title">How to Play</h2>
-                <button class="close-btn" onclick="closeModal('helpModal')">&times;</button>
+                <button class="close-btn" data-close-modal="helpModal">&times;</button>
             </div>
             <div class="help-section">
                 <p>Guess the six-letter word in six attempts.</p>
@@ -1241,7 +1241,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h2 class="modal-title">Settings</h2>
-                <button class="close-btn" onclick="closeModal('settingsModal')">&times;</button>
+                <button class="close-btn" data-close-modal="settingsModal">&times;</button>
             </div>
             <div id="displayNameSetting" class="setting-row" style="display: none;">
                 <div class="setting-info">
@@ -1252,7 +1252,7 @@
                     <p id="displayNameError" style="display: none; font-size: 0.75rem; color: #c45; margin: 0 0 0.35rem 0; text-align: right;"></p>
                     <div class="name-input-group">
                         <input type="text" id="displayNameInput" class="name-input" maxlength="20" placeholder="Enter name">
-                        <button class="name-save-btn" id="displayNameSave" onclick="saveDisplayName()">Save</button>
+                        <button class="name-save-btn" id="displayNameSave">Save</button>
                     </div>
                 </div>
             </div>
@@ -1262,7 +1262,7 @@
                     <div class="setting-name">Hard Mode</div>
                     <div class="setting-desc">Revealed hints must be used in subsequent guesses</div>
                 </div>
-                <button class="toggle" id="hardModeToggle" onclick="toggleHardMode()" aria-label="Toggle hard mode"></button>
+                <button class="toggle" id="hardModeToggle" aria-label="Toggle hard mode"></button>
             </div>
         </div>
     </div>
@@ -1274,7 +1274,7 @@
             <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 1.5rem;">Choose a display name for the leaderboard</p>
             <input type="text" id="welcomeNameInput" class="name-input name-input-lg" maxlength="20" placeholder="Enter your name">
             <p id="welcomeNameError" style="display: none; font-size: 0.8rem; color: #c45; margin-top: 0.5rem;"></p>
-            <button class="share-btn" style="margin-top: 1rem;" onclick="saveWelcomeName()">Let's play</button>
+            <button class="share-btn" style="margin-top: 1rem;" id="welcomePlayBtn">Let's play</button>
         </div>
     </div>
 
