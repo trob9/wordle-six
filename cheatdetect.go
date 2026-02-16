@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"math"
@@ -9,19 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"sync"
 	"time"
-)
-
-type cachedGeoResult struct {
-	timezone    string
-	countryCode string
-	fetchedAt   time.Time
-}
-
-var (
-	geoCache   = make(map[string]cachedGeoResult)
-	geoCacheMu sync.Mutex
 )
 
 // checkTimezone logs timezone data and returns true if suspicious activity is detected.
@@ -61,22 +48,6 @@ func checkTimezone(userID int64, clientTime string, tzOffset int, ip string, end
 		if parseErr == nil && now.Sub(prevTime) < 30*time.Minute {
 			if prevOffset != tzOffset {
 				reasons = append(reasons, fmt.Sprintf("tz_drift=%d->%d_in_%s", prevOffset, tzOffset, now.Sub(prevTime).Round(time.Second)))
-			}
-		}
-	}
-
-	// 3. IP geolocation mismatch
-	if ip != "" && !strings.HasPrefix(ip, "127.") && ip != "::1" {
-		geoTZ := getGeoTimezone(ip)
-		if geoTZ != "" {
-			loc, err := time.LoadLocation(geoTZ)
-			if err == nil {
-				_, expectedOffset := time.Now().In(loc).Zone()
-				expectedOffsetMin := -(expectedOffset / 60) // JS getTimezoneOffset is inverted
-				diff := math.Abs(float64(tzOffset - expectedOffsetMin))
-				if diff > 120 { // more than 2 hours off
-					reasons = append(reasons, fmt.Sprintf("ip_tz_mismatch: ip=%s geo_tz=%s expected_offset=%d got=%d", ip, geoTZ, expectedOffsetMin, tzOffset))
-				}
 			}
 		}
 	}
@@ -126,44 +97,6 @@ func isPrivateIP(ipStr string) bool {
 		}
 	}
 	return false
-}
-
-// getGeoTimezone returns the IANA timezone for an IP, using a 24h cache.
-func getGeoTimezone(ip string) string {
-	// Validate IP format and block private ranges (SSRF protection)
-	if net.ParseIP(ip) == nil || isPrivateIP(ip) {
-		return ""
-	}
-
-	geoCacheMu.Lock()
-	cached, ok := geoCache[ip]
-	geoCacheMu.Unlock()
-
-	if ok && time.Since(cached.fetchedAt) < 24*time.Hour {
-		return cached.timezone
-	}
-
-	client := &http.Client{Timeout: 3 * time.Second}
-	resp, err := client.Get(fmt.Sprintf("https://ip-api.com/json/%s?fields=status,timezone", ip))
-	if err != nil {
-		log.Printf("cheatdetect: geo lookup failed for %s: %v", ip, err)
-		return ""
-	}
-	defer resp.Body.Close()
-
-	var result struct {
-		Status   string `json:"status"`
-		Timezone string `json:"timezone"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil || result.Status != "success" {
-		return ""
-	}
-
-	geoCacheMu.Lock()
-	geoCache[ip] = cachedGeoResult{timezone: result.Timezone, fetchedAt: time.Now()}
-	geoCacheMu.Unlock()
-
-	return result.Timezone
 }
 
 // getClientIP extracts the client IP from the request, preferring Cf-Connecting-Ip.
