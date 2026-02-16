@@ -16,6 +16,31 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+// oauthHTTPClient is used for all OAuth token exchange and user info requests.
+var oauthHTTPClient = &http.Client{Timeout: 10 * time.Second}
+
+// validateAvatarURL ensures avatar URLs are HTTPS and from trusted OAuth providers.
+func validateAvatarURL(rawURL string) string {
+	if rawURL == "" {
+		return ""
+	}
+	parsed, err := url.Parse(rawURL)
+	if err != nil || parsed.Scheme != "https" {
+		return ""
+	}
+	allowedHosts := []string{
+		"avatars.githubusercontent.com",
+		"cdn.discordapp.com",
+		"lh3.googleusercontent.com",
+	}
+	for _, host := range allowedHosts {
+		if parsed.Host == host {
+			return rawURL
+		}
+	}
+	return ""
+}
+
 var jwtSecret []byte
 
 func init() {
@@ -163,7 +188,7 @@ func handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := oauthHTTPClient.Do(req)
 	if err != nil {
 		log.Printf("OAuth callback: token exchange HTTP error: %v", err)
 		http.Error(w, "Token exchange failed", http.StatusInternalServerError)
@@ -193,7 +218,7 @@ func handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 	userReq.Header.Set("Authorization", "Bearer "+accessToken)
 	userReq.Header.Set("Accept", "application/json")
 
-	userResp, err := http.DefaultClient.Do(userReq)
+	userResp, err := oauthHTTPClient.Do(userReq)
 	if err != nil {
 		log.Printf("OAuth callback: user info fetch error: %v", err)
 		http.Error(w, "Failed to fetch user info", http.StatusInternalServerError)
@@ -228,8 +253,9 @@ func handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 		avatarURL, _ = userInfo["picture"].(string)
 	}
 
-	log.Printf("OAuth callback: provider=%s user=%s id=%s", provider, displayName, providerID)
+	log.Printf("OAuth callback: provider=%s id=%s", provider, providerID)
 
+	avatarURL = validateAvatarURL(avatarURL)
 	user, err := upsertUser(provider, providerID, displayName, avatarURL)
 	if err != nil {
 		log.Printf("OAuth callback: upsertUser failed: %v", err)

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -102,8 +103,33 @@ func checkTimezone(userID int64, clientTime string, tzOffset int, ip string, end
 	return false
 }
 
+// isPrivateIP checks if an IP is in a private/reserved range (SSRF protection).
+func isPrivateIP(ipStr string) bool {
+	ip := net.ParseIP(ipStr)
+	if ip == nil {
+		return true // treat unparseable IPs as private
+	}
+	privateRanges := []string{
+		"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16",
+		"127.0.0.0/8", "169.254.0.0/16", "0.0.0.0/8",
+		"::1/128", "fc00::/7", "fe80::/10",
+	}
+	for _, cidr := range privateRanges {
+		_, ipnet, _ := net.ParseCIDR(cidr)
+		if ipnet.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
 // getGeoTimezone returns the IANA timezone for an IP, using a 24h cache.
 func getGeoTimezone(ip string) string {
+	// Validate IP format and block private ranges (SSRF protection)
+	if net.ParseIP(ip) == nil || isPrivateIP(ip) {
+		return ""
+	}
+
 	geoCacheMu.Lock()
 	cached, ok := geoCache[ip]
 	geoCacheMu.Unlock()
@@ -113,7 +139,7 @@ func getGeoTimezone(ip string) string {
 	}
 
 	client := &http.Client{Timeout: 3 * time.Second}
-	resp, err := client.Get(fmt.Sprintf("http://ip-api.com/json/%s?fields=status,timezone", ip))
+	resp, err := client.Get(fmt.Sprintf("https://ip-api.com/json/%s?fields=status,timezone", ip))
 	if err != nil {
 		log.Printf("cheatdetect: geo lookup failed for %s: %v", ip, err)
 		return ""

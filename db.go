@@ -107,7 +107,7 @@ type User struct {
 }
 
 func upsertUser(provider, providerID, displayName, avatarURL string) (*User, error) {
-	result, err := db.Exec(`
+	_, err := db.Exec(`
 		INSERT INTO users (provider, provider_id, display_name, avatar_url)
 		VALUES (?, ?, ?, ?)
 		ON CONFLICT(provider, provider_id)
@@ -117,13 +117,13 @@ func upsertUser(provider, providerID, displayName, avatarURL string) (*User, err
 		return nil, err
 	}
 
-	// Get the user ID (last insert or existing)
-	id, err := result.LastInsertId()
-	if err != nil || id == 0 {
-		row := db.QueryRow("SELECT id FROM users WHERE provider = ? AND provider_id = ?", provider, providerID)
-		if err := row.Scan(&id); err != nil {
-			return nil, err
-		}
+	// Always query for the actual user ID — LastInsertId() is unreliable
+	// for upserts because SQLite doesn't update last_insert_rowid on the
+	// conflict/update path, returning a stale value instead.
+	var id int64
+	row := db.QueryRow("SELECT id FROM users WHERE provider = ? AND provider_id = ?", provider, providerID)
+	if err := row.Scan(&id); err != nil {
+		return nil, err
 	}
 
 	return &User{

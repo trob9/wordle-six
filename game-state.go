@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"regexp"
@@ -88,6 +89,12 @@ func handleSaveProgress(w http.ResponseWriter, r *http.Request) {
 
 	if body.Date == "" {
 		http.Error(w, "Date is required", http.StatusBadRequest)
+		return
+	}
+
+	// Validate guesses count (max 6 guesses in a game)
+	if len(body.Guesses) > 6 {
+		http.Error(w, "Too many guesses", http.StatusBadRequest)
 		return
 	}
 
@@ -253,9 +260,9 @@ func checkProfanity(text string) (bool, error) {
 	client := &http.Client{Timeout: 3 * time.Second}
 	resp, err := client.Post("https://vector.profanity.dev", "application/json", bytes.NewReader(payload))
 	if err != nil {
-		// If the API is down, allow the name (fail open)
-		log.Printf("Profanity API error: %v", err)
-		return false, nil
+		// Fail closed: reject name if profanity API is unreachable
+		log.Printf("Profanity API error (rejecting name): %v", err)
+		return false, fmt.Errorf("profanity check unavailable")
 	}
 	defer resp.Body.Close()
 
@@ -263,7 +270,7 @@ func checkProfanity(text string) (bool, error) {
 		IsProfanity bool `json:"isProfanity"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return false, nil
+		return false, fmt.Errorf("profanity check decode error")
 	}
 	return result.IsProfanity, nil
 }
@@ -300,7 +307,11 @@ func handleUpdateDisplayName(w http.ResponseWriter, r *http.Request) {
 	}
 
 	isProfane, err := checkProfanity(name)
-	if err == nil && isProfane {
+	if err != nil {
+		http.Error(w, "Unable to verify name, please try again later", http.StatusServiceUnavailable)
+		return
+	}
+	if isProfane {
 		http.Error(w, "That name is not allowed", http.StatusBadRequest)
 		return
 	}
