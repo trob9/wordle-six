@@ -81,16 +81,6 @@ func createTables() error {
 			UNIQUE(user_id, date)
 		);
 
-		CREATE TABLE IF NOT EXISTS tz_events (
-			id INTEGER PRIMARY KEY,
-			user_id INTEGER NOT NULL,
-			server_utc DATETIME NOT NULL,
-			client_time TEXT NOT NULL,
-			tz_offset INTEGER NOT NULL,
-			ip TEXT NOT NULL,
-			endpoint TEXT NOT NULL
-		);
-		CREATE INDEX IF NOT EXISTS idx_tz_events_user ON tz_events(user_id, server_utc DESC);
 	`)
 	return err
 }

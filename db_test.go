@@ -8,7 +8,7 @@ func TestCreateTables(t *testing.T) {
 	setupTestDB(t)
 
 	// Verify all tables exist by querying them
-	tables := []string{"users", "game_results", "user_stats", "game_progress", "tz_events"}
+	tables := []string{"users", "game_results", "user_stats", "game_progress"}
 	for _, table := range tables {
 		var name string
 		err := db.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name=?", table).Scan(&name)
