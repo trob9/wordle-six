@@ -62,8 +62,8 @@ async function initGame() {
                 gameState.guesses = serverGuesses;
                 gameState.gameOver = serverState.gameOver || false;
                 gameState.won = serverState.won || false;
-                hardMode = serverState.hardMode || false;
-                localStorage.setItem('hardMode', hardMode);
+                // Hard mode preference is owned by user_stats (loaded in syncStatsFromServer above).
+                // Never read it from game-state — that would create a second source of truth.
                 currentRow = gameState.guesses.length;
                 gameOver = gameState.gameOver;
                 targetWord = getTodaysWord();
@@ -356,7 +356,7 @@ function saveGameState() {
 let tzWarningShown = false;
 
 function saveProgressToServer() {
-    if (typeof currentUser === 'undefined' || !currentUser || !gameState) return;
+    if (!gameState) return;
     fetch('/api/save-progress', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
