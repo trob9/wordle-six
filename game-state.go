@@ -65,22 +65,28 @@ func handleGetGameState(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleSaveProgress(w http.ResponseWriter, r *http.Request) {
-	log.Printf("POST /api/save-progress called")
 	user := getUserFromRequest(r)
+
+	// Decode body before auth check so we can log anonymous guess attempts.
+	var body struct {
+		Date     string   `json:"date"`
+		Guesses  []string `json:"guesses"`
+		HardMode bool     `json:"hardMode"`
+		GameOver bool     `json:"gameOver"`
+		Won      bool     `json:"won"`
+	}
+	decodeErr := json.NewDecoder(r.Body).Decode(&body)
+
 	if user == nil {
-		log.Printf("POST /api/save-progress: not authenticated")
+		// Log the anonymous guess so we can detect logged-out play before login.
+		if decodeErr == nil && len(body.Guesses) > 0 && body.Date != "" {
+			logGuessEvent(0, false, body.Date, body.Guesses, body.HardMode, body.GameOver, body.Won, false, clientIP(r))
+		}
 		http.Error(w, "Not authenticated", http.StatusUnauthorized)
 		return
 	}
 
-	var body struct {
-		Date       string   `json:"date"`
-		Guesses    []string `json:"guesses"`
-		HardMode   bool     `json:"hardMode"`
-		GameOver   bool     `json:"gameOver"`
-		Won        bool     `json:"won"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	if decodeErr != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
@@ -95,6 +101,10 @@ func handleSaveProgress(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Too many guesses", http.StatusBadRequest)
 		return
 	}
+
+	// Check for existing server record before saving — used to detect anon→login sync.
+	var existingCount int
+	db.QueryRow("SELECT COUNT(*) FROM game_progress WHERE user_id = ? AND date = ?", user.ID, body.Date).Scan(&existingCount)
 
 	guessesJSON, _ := json.Marshal(body.Guesses)
 
@@ -123,14 +133,43 @@ func handleSaveProgress(w http.ResponseWriter, r *http.Request) {
 		}
 		if err := insertGameResult(user.ID, body.Date, body.Won, guessPtr, body.HardMode); err != nil {
 			log.Printf("POST /api/save-progress: auto-insert game_result failed: %v", err)
-		} else {
-			log.Printf("POST /api/save-progress: auto-inserted game_result for user %d, date=%s, won=%v, guesses=%d", user.ID, body.Date, body.Won, guessCount)
 		}
 	}
 
-	log.Printf("POST /api/save-progress: saved for user %d, date=%s, %d guesses", user.ID, body.Date, len(body.Guesses))
+	// Anon→login sync: user has no server record for today but submitted multiple guesses at once.
+	anonSync := existingCount == 0 && len(body.Guesses) > 1
+	logGuessEvent(user.ID, true, body.Date, body.Guesses, body.HardMode, body.GameOver, body.Won, anonSync, clientIP(r))
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{"ok": true})
+}
+
+// logGuessEvent emits a structured JSON guess event to stdout (picked up by Loki).
+// userID is 0 for anonymous users. anonSync flags a batch of guesses synced after login.
+func logGuessEvent(userID int64, loggedIn bool, date string, guesses []string, hardMode, gameOver, won, anonSync bool, ip string) {
+	if len(guesses) == 0 {
+		return
+	}
+	entry := map[string]interface{}{
+		"event":     "guess",
+		"logged_in": loggedIn,
+		"date":      date,
+		"guess":     guesses[len(guesses)-1],
+		"guess_num": len(guesses),
+		"game_over": gameOver,
+		"won":       won,
+		"hard_mode": hardMode,
+		"ip":        ip,
+	}
+	if loggedIn {
+		entry["user_id"] = userID
+	}
+	if anonSync {
+		entry["anon_sync"] = true
+		entry["synced_guess_count"] = len(guesses)
+	}
+	b, _ := json.Marshal(entry)
+	fmt.Println(string(b))
 }
 
 type UserStats struct {

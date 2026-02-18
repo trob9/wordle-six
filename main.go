@@ -156,7 +156,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:              ":" + port,
-		Handler:           mux,
+		Handler:           accessLog(mux),
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      15 * time.Second,
 		ReadHeaderTimeout: 5 * time.Second,

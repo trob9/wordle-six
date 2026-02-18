@@ -101,14 +101,17 @@ func handleAuthStart(w http.ResponseWriter, r *http.Request) {
 	provider := r.PathValue("provider")
 	cfg, err := getOAuthConfig(provider)
 	if err != nil {
+		logAuthEvent("auth_start", provider, "unknown_provider", clientIP(r), nil)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	if cfg.ClientID == "" {
+		logAuthEvent("auth_start", provider, "not_configured", clientIP(r), nil)
 		http.Error(w, provider+" OAuth not configured", http.StatusServiceUnavailable)
 		return
 	}
+	logAuthEvent("auth_start", provider, "initiated", clientIP(r), nil)
 
 	// Generate state token for CSRF protection
 	stateBytes := make([]byte, 16)
@@ -151,11 +154,13 @@ func handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 	stateCookie, err := r.Cookie("oauth_state")
 	if err != nil {
 		log.Printf("OAuth callback: oauth_state cookie missing: %v", err)
+		logAuthEvent("auth_login", provider, "failure", clientIP(r), map[string]interface{}{"reason": "missing_state_cookie"})
 		http.Error(w, "Invalid state parameter", http.StatusBadRequest)
 		return
 	}
 	if stateCookie.Value != r.URL.Query().Get("state") {
 		log.Printf("OAuth callback: state mismatch: cookie=%s url=%s", stateCookie.Value, r.URL.Query().Get("state"))
+		logAuthEvent("auth_login", provider, "failure", clientIP(r), map[string]interface{}{"reason": "state_mismatch"})
 		http.Error(w, "Invalid state parameter", http.StatusBadRequest)
 		return
 	}
@@ -163,6 +168,7 @@ func handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 	code := r.URL.Query().Get("code")
 	if code == "" {
 		log.Printf("OAuth callback: no code parameter in URL")
+		logAuthEvent("auth_login", provider, "failure", clientIP(r), map[string]interface{}{"reason": "no_code"})
 		http.Error(w, "No code provided", http.StatusBadRequest)
 		return
 	}
@@ -276,6 +282,10 @@ func handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Printf("OAuth callback: success, setting session cookie for user %d (%s)", user.ID, displayName)
+	logAuthEvent("auth_login", provider, "success", clientIP(r), map[string]interface{}{
+		"user_id":  user.ID,
+		"is_new":   user.IsNew,
+	})
 
 	http.SetCookie(w, &http.Cookie{
 		Name:     "session",
@@ -322,6 +332,12 @@ func handleAuthMe(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleAuthLogout(w http.ResponseWriter, r *http.Request) {
+	user := getUserFromRequest(r)
+	if user != nil {
+		logAuthEvent("auth_logout", user.Provider, "success", clientIP(r), map[string]interface{}{
+			"user_id": user.ID,
+		})
+	}
 	http.SetCookie(w, &http.Cookie{
 		Name:     "session",
 		Path:     "/",
