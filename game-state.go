@@ -80,7 +80,7 @@ func handleSaveProgress(w http.ResponseWriter, r *http.Request) {
 	if user == nil {
 		// Log the anonymous guess so we can detect logged-out play before login.
 		if decodeErr == nil && len(body.Guesses) > 0 && body.Date != "" {
-			logGuessEvent(0, false, body.Date, body.Guesses, body.HardMode, body.GameOver, body.Won, false, clientIP(r))
+			logGuessEvent(0, "", body.Date, body.Guesses, body.HardMode, body.GameOver, body.Won, false, clientIP(r))
 		}
 		http.Error(w, "Not authenticated", http.StatusUnauthorized)
 		return
@@ -138,18 +138,23 @@ func handleSaveProgress(w http.ResponseWriter, r *http.Request) {
 
 	// Anon→login sync: user has no server record for today but submitted multiple guesses at once.
 	anonSync := existingCount == 0 && len(body.Guesses) > 1
-	logGuessEvent(user.ID, true, body.Date, body.Guesses, body.HardMode, body.GameOver, body.Won, anonSync, clientIP(r))
+	name := user.DisplayName
+	if user.CustomName != nil {
+		name = *user.CustomName
+	}
+	logGuessEvent(user.ID, name, body.Date, body.Guesses, body.HardMode, body.GameOver, body.Won, anonSync, clientIP(r))
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{"ok": true})
 }
 
 // logGuessEvent emits a structured JSON guess event to stdout (picked up by Loki).
-// userID is 0 for anonymous users. anonSync flags a batch of guesses synced after login.
-func logGuessEvent(userID int64, loggedIn bool, date string, guesses []string, hardMode, gameOver, won, anonSync bool, ip string) {
+// userID is 0 and displayName is "" for anonymous users. anonSync flags a batch of guesses synced after login.
+func logGuessEvent(userID int64, displayName string, date string, guesses []string, hardMode, gameOver, won, anonSync bool, ip string) {
 	if len(guesses) == 0 {
 		return
 	}
+	loggedIn := userID != 0
 	entry := map[string]interface{}{
 		"event":     "guess",
 		"logged_in": loggedIn,
@@ -163,6 +168,7 @@ func logGuessEvent(userID int64, loggedIn bool, date string, guesses []string, h
 	}
 	if loggedIn {
 		entry["user_id"] = userID
+		entry["display_name"] = displayName
 	}
 	if anonSync {
 		entry["anon_sync"] = true
