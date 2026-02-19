@@ -156,6 +156,7 @@ func logGuessEvent(userID int64, displayName string, date string, guesses []stri
 	}
 	loggedIn := userID != 0
 	entry := map[string]interface{}{
+		"ts":        time.Now().UTC().Format(time.RFC3339),
 		"event":     "guess",
 		"logged_in": loggedIn,
 		"date":      date,
