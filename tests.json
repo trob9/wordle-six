@@ -1,0 +1,5 @@
+[
+  {"path": "/", "method": "GET", "expected_status": 200},
+  {"path": "/api/leaderboard", "method": "GET", "expected_status": 200},
+  {"path": "/auth/me", "method": "GET", "expected_status": 200}
+]
