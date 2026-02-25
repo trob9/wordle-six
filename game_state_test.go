@@ -219,16 +219,21 @@ func TestSaveAndLoadStats(t *testing.T) {
 	user := createTestUser(t, "github", "1", "player")
 	cookie := makeAuthCookie(t, user.ID)
 
+	// Insert 5 consecutive wins so streak_view returns 5.
+	for i, date := range []string{"2024-01-15", "2024-01-14", "2024-01-13", "2024-01-12", "2024-01-11"} {
+		g := i + 2
+		insertGameResult(user.ID, date, true, &g, false)
+	}
+
 	body := UserStats{
-		Played:        10,
-		Won:           8,
-		PlayedHard:    3,
-		WonHard:       2,
-		CurrentStreak: 5,
-		MaxStreak:     7,
-		Distribution:  []int{0, 1, 2, 3, 1, 1},
-		LastDate:      "2024-01-15",
-		HardMode:      true,
+		Played:       10,
+		Won:          8,
+		PlayedHard:   3,
+		WonHard:      2,
+		MaxStreak:    7,
+		Distribution: []int{0, 1, 2, 3, 1, 1},
+		LastDate:     "2024-01-15",
+		HardMode:     true,
 	}
 	req := jsonRequest(t, "POST", "/api/user-stats", body, cookie)
 	rr := httptest.NewRecorder()

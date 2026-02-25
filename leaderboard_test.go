@@ -7,9 +7,16 @@ import (
 	"testing"
 )
 
-// --- computeStreak ---
+// --- streak_view ---
 
-func TestComputeStreak_AllWins(t *testing.T) {
+func queryStreak(t *testing.T, userID int64) int {
+	t.Helper()
+	var streak int
+	db.QueryRow("SELECT COALESCE(current_streak, 0) FROM streak_view WHERE user_id = ?", userID).Scan(&streak)
+	return streak
+}
+
+func TestStreakView_AllWins(t *testing.T) {
 	setupTestDB(t)
 	user := createTestUser(t, "github", "1", "streaker")
 
@@ -18,13 +25,12 @@ func TestComputeStreak_AllWins(t *testing.T) {
 		insertGameResult(user.ID, date, true, &guesses, false)
 	}
 
-	streak := computeStreak(user.ID)
-	if streak != 3 {
+	if streak := queryStreak(t, user.ID); streak != 3 {
 		t.Errorf("expected streak=3, got %d", streak)
 	}
 }
 
-func TestComputeStreak_BrokenByLoss(t *testing.T) {
+func TestStreakView_BrokenByLoss(t *testing.T) {
 	setupTestDB(t)
 	user := createTestUser(t, "github", "1", "player")
 
@@ -34,31 +40,28 @@ func TestComputeStreak_BrokenByLoss(t *testing.T) {
 	insertGameResult(user.ID, "2024-01-13", false, nil, false)  // loss breaks streak
 	insertGameResult(user.ID, "2024-01-12", true, &g3, false)  // older win
 
-	streak := computeStreak(user.ID)
-	if streak != 2 {
+	if streak := queryStreak(t, user.ID); streak != 2 {
 		t.Errorf("expected streak=2, got %d", streak)
 	}
 }
 
-func TestComputeStreak_NoResults(t *testing.T) {
+func TestStreakView_NoResults(t *testing.T) {
 	setupTestDB(t)
 	user := createTestUser(t, "github", "1", "newbie")
 
-	streak := computeStreak(user.ID)
-	if streak != 0 {
+	if streak := queryStreak(t, user.ID); streak != 0 {
 		t.Errorf("expected streak=0, got %d", streak)
 	}
 }
 
-func TestComputeStreak_AllLosses(t *testing.T) {
+func TestStreakView_AllLosses(t *testing.T) {
 	setupTestDB(t)
 	user := createTestUser(t, "github", "1", "loser")
 
 	insertGameResult(user.ID, "2024-01-15", false, nil, false)
 	insertGameResult(user.ID, "2024-01-14", false, nil, false)
 
-	streak := computeStreak(user.ID)
-	if streak != 0 {
+	if streak := queryStreak(t, user.ID); streak != 0 {
 		t.Errorf("expected streak=0, got %d", streak)
 	}
 }

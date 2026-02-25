@@ -81,6 +81,31 @@ func createTables() error {
 			UNIQUE(user_id, date)
 		);
 
+		CREATE VIEW IF NOT EXISTS streak_view AS
+		WITH ranked AS (
+			SELECT
+				user_id,
+				won,
+				ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY date DESC) AS rn
+			FROM game_results
+		),
+		first_loss AS (
+			SELECT user_id, MIN(rn) AS loss_at
+			FROM ranked
+			WHERE NOT won
+			GROUP BY user_id
+		),
+		totals AS (
+			SELECT user_id, COUNT(*) AS total_games
+			FROM game_results
+			GROUP BY user_id
+		)
+		SELECT
+			t.user_id,
+			COALESCE(fl.loss_at - 1, t.total_games) AS current_streak
+		FROM totals t
+		LEFT JOIN first_loss fl ON fl.user_id = t.user_id;
+
 	`)
 	return err
 }

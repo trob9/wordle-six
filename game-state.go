@@ -204,9 +204,11 @@ func handleGetUserStats(w http.ResponseWriter, r *http.Request) {
 	var hardModeVal bool
 
 	err := db.QueryRow(
-		"SELECT played, won, played_hard, won_hard, current_streak, max_streak, distribution, last_date, hard_mode FROM user_stats WHERE user_id = ?",
+		"SELECT played, won, played_hard, won_hard, max_streak, distribution, last_date, hard_mode FROM user_stats WHERE user_id = ?",
 		user.ID,
-	).Scan(&played, &won, &playedHard, &wonHard, &currentStreak, &maxStreak, &distributionJSON, &lastDate, &hardModeVal)
+	).Scan(&played, &won, &playedHard, &wonHard, &maxStreak, &distributionJSON, &lastDate, &hardModeVal)
+	// Derive current streak from game_results rather than trusting the client-synced value.
+	db.QueryRow("SELECT COALESCE(current_streak, 0) FROM streak_view WHERE user_id = ?", user.ID).Scan(&currentStreak)
 
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
@@ -254,19 +256,18 @@ func handleSaveUserStats(w http.ResponseWriter, r *http.Request) {
 	distributionJSON, _ := json.Marshal(body.Distribution)
 
 	_, err := db.Exec(`
-		INSERT INTO user_stats (user_id, played, won, played_hard, won_hard, current_streak, max_streak, distribution, last_date, hard_mode)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO user_stats (user_id, played, won, played_hard, won_hard, max_streak, distribution, last_date, hard_mode)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(user_id) DO UPDATE SET
 			played = excluded.played,
 			won = excluded.won,
 			played_hard = excluded.played_hard,
 			won_hard = excluded.won_hard,
-			current_streak = excluded.current_streak,
 			max_streak = excluded.max_streak,
 			distribution = excluded.distribution,
 			last_date = excluded.last_date,
 			hard_mode = excluded.hard_mode
-	`, user.ID, body.Played, body.Won, body.PlayedHard, body.WonHard, body.CurrentStreak, body.MaxStreak, string(distributionJSON), body.LastDate, body.HardMode)
+	`, user.ID, body.Played, body.Won, body.PlayedHard, body.WonHard, body.MaxStreak, string(distributionJSON), body.LastDate, body.HardMode)
 
 	if err != nil {
 		log.Printf("POST /api/user-stats: db error: %v", err)

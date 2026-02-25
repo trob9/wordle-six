@@ -32,7 +32,7 @@ func handleGetLeaderboard(w http.ResponseWriter, r *http.Request) {
 	// Formula: bayesian_avg = (C * global_mean + player_sum) / (C + games_played)
 	// C = 10 (confidence parameter). Higher C = more games needed to diverge from mean.
 	// Hard mode wins get 10% bonus (guesses * 0.9). Losses count as 7.
-	// Streak computed in Go since SQL window-based streak is complex in SQLite.
+	// Streak derived from streak_view (window function over game_results) — not stored.
 	rows, err := db.Query(`
 		WITH global AS (
 			SELECT SUM(
@@ -76,8 +76,11 @@ func handleGetLeaderboard(w http.ResponseWriter, r *http.Request) {
 			p.true_avg,
 			p.win_rate,
 			p.games_played,
-			p.hard_mode_wins
-		FROM player p, global g
+			p.hard_mode_wins,
+			COALESCE(sv.current_streak, 0) AS current_streak
+		FROM player p
+		CROSS JOIN global g
+		LEFT JOIN streak_view sv ON sv.user_id = p.user_id
 		ORDER BY weighted_avg ASC, win_rate DESC, games_played DESC
 		LIMIT ?
 	`, limit)
@@ -91,18 +94,13 @@ func handleGetLeaderboard(w http.ResponseWriter, r *http.Request) {
 	rank := 1
 	for rows.Next() {
 		var e LeaderboardEntry
-		err := rows.Scan(&e.UserID, &e.DisplayName, &e.AvatarURL, &e.WeightedAvg, &e.TrueAvg, &e.WinRate, &e.GamesPlayed, &e.HardModeWins)
+		err := rows.Scan(&e.UserID, &e.DisplayName, &e.AvatarURL, &e.WeightedAvg, &e.TrueAvg, &e.WinRate, &e.GamesPlayed, &e.HardModeWins, &e.Streak)
 		if err != nil {
 			continue
 		}
 		e.Rank = rank
 		rank++
 		entries = append(entries, e)
-	}
-
-	// Compute current streak for each player
-	for i := range entries {
-		entries[i].Streak = computeStreak(entries[i].UserID)
 	}
 
 	if entries == nil {
@@ -151,25 +149,3 @@ func handleSubmitResult(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]interface{}{"ok": true})
 }
 
-func computeStreak(userID int64) int {
-	rows, err := db.Query(`
-		SELECT won FROM game_results
-		WHERE user_id = ?
-		ORDER BY date DESC
-	`, userID)
-	if err != nil {
-		return 0
-	}
-	defer rows.Close()
-
-	streak := 0
-	for rows.Next() {
-		var won bool
-		rows.Scan(&won)
-		if !won {
-			break
-		}
-		streak++
-	}
-	return streak
-}
