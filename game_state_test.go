@@ -230,7 +230,6 @@ func TestSaveAndLoadStats(t *testing.T) {
 		Won:          8,
 		PlayedHard:   3,
 		WonHard:      2,
-		MaxStreak:    7,
 		Distribution: []int{0, 1, 2, 3, 1, 1},
 		LastDate:     "2024-01-15",
 		HardMode:     true,
@@ -259,6 +258,9 @@ func TestSaveAndLoadStats(t *testing.T) {
 	}
 	if stats.CurrentStreak != 5 {
 		t.Errorf("expected streak=5, got %d", stats.CurrentStreak)
+	}
+	if stats.MaxStreak != 5 {
+		t.Errorf("expected max_streak=5, got %d", stats.MaxStreak)
 	}
 	if !stats.HardMode {
 		t.Error("expected hardMode=true")

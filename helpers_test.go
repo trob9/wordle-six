@@ -29,6 +29,9 @@ func setupTestDB(t *testing.T) {
 	if err := runMigrations(); err != nil {
 		t.Fatalf("failed to run migrations: %v", err)
 	}
+	if err := createViews(); err != nil {
+		t.Fatalf("failed to create views: %v", err)
+	}
 
 	t.Cleanup(func() {
 		db.Close()

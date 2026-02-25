@@ -30,7 +30,10 @@ func initDB() error {
 	if err := createTables(); err != nil {
 		return err
 	}
-	return runMigrations()
+	if err := runMigrations(); err != nil {
+		return err
+	}
+	return createViews()
 }
 
 func createTables() error {
@@ -80,31 +83,6 @@ func createTables() error {
 			won BOOLEAN NOT NULL DEFAULT FALSE,
 			UNIQUE(user_id, date)
 		);
-
-		CREATE VIEW IF NOT EXISTS streak_view AS
-		WITH ranked AS (
-			SELECT
-				user_id,
-				won,
-				ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY date DESC) AS rn
-			FROM game_results
-		),
-		first_loss AS (
-			SELECT user_id, MIN(rn) AS loss_at
-			FROM ranked
-			WHERE NOT won
-			GROUP BY user_id
-		),
-		totals AS (
-			SELECT user_id, COUNT(*) AS total_games
-			FROM game_results
-			GROUP BY user_id
-		)
-		SELECT
-			t.user_id,
-			COALESCE(fl.loss_at - 1, t.total_games) AS current_streak
-		FROM totals t
-		LEFT JOIN first_loss fl ON fl.user_id = t.user_id;
 
 	`)
 	return err
@@ -171,6 +149,60 @@ func banUser(userID int64) error {
 
 func unbanUser(userID int64) error {
 	_, err := db.Exec("UPDATE users SET banned = FALSE WHERE id = ?", userID)
+	return err
+}
+
+// createViews drops and recreates all derived views so definition changes
+// take effect on every startup without a manual migration step.
+func createViews() error {
+	_, err := db.Exec(`
+		DROP VIEW IF EXISTS streak_view;
+
+		CREATE VIEW streak_view AS
+		WITH all_games AS (
+			SELECT
+				user_id,
+				won,
+				ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY date DESC) AS rn_desc,
+				ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY date ASC)  AS rn_asc
+			FROM game_results
+		),
+		first_loss AS (
+			SELECT user_id, MIN(rn_desc) AS loss_at
+			FROM all_games
+			WHERE NOT won
+			GROUP BY user_id
+		),
+		totals AS (
+			SELECT user_id, COUNT(*) AS total_games
+			FROM game_results
+			GROUP BY user_id
+		),
+		wins_numbered AS (
+			SELECT
+				user_id,
+				rn_asc - ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY rn_asc) AS island_key
+			FROM all_games
+			WHERE won = TRUE
+		),
+		islands AS (
+			SELECT user_id, island_key, COUNT(*) AS island_size
+			FROM wins_numbered
+			GROUP BY user_id, island_key
+		),
+		max_streaks AS (
+			SELECT user_id, MAX(island_size) AS max_streak
+			FROM islands
+			GROUP BY user_id
+		)
+		SELECT
+			t.user_id,
+			COALESCE(fl.loss_at - 1, t.total_games) AS current_streak,
+			COALESCE(ms.max_streak, 0) AS max_streak
+		FROM totals t
+		LEFT JOIN first_loss fl ON fl.user_id = t.user_id
+		LEFT JOIN max_streaks ms ON ms.user_id = t.user_id;
+	`)
 	return err
 }
 
