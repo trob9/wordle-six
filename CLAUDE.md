@@ -156,7 +156,8 @@ After deploying, purge Cloudflare cache for JS/CSS changes to take effect.
 
 ### Access the database
 ```bash
-sudo sqlite3 /var/lib/docker/volumes/wordle-six-data/_data/wordle-six.db
+sudo sqlite3 /var/lib/docker/100000.100000/volumes/wordle-six-data/_data/wordle-six.db
+# NOTE: userns-remap offsets the path — it is NOT /var/lib/docker/volumes/
 ```
 
 ### Check logs
