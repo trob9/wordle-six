@@ -1,4 +1,6 @@
-package main
+// Package testutil provides shared test helpers for wordle-six internal packages.
+// It is a regular (non-_test) package so it can be imported by multiple test packages.
+package testutil
 
 import (
 	"bytes"
@@ -11,51 +13,53 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	_ "github.com/mattn/go-sqlite3"
+	"wordle-six/internal/auth"
+	"wordle-six/internal/store"
 )
 
-// setupTestDB creates an in-memory SQLite database for testing.
-func setupTestDB(t *testing.T) {
+// SetupTestDB creates an in-memory SQLite database and assigns it to store.DB.
+func SetupTestDB(t *testing.T) {
 	t.Helper()
 
 	var err error
-	db, err = sql.Open("sqlite3", ":memory:?_journal_mode=WAL&_busy_timeout=5000")
+	store.DB, err = sql.Open("sqlite3", ":memory:?_journal_mode=WAL&_busy_timeout=5000")
 	if err != nil {
 		t.Fatalf("failed to open test db: %v", err)
 	}
 
-	if err := createTables(); err != nil {
+	if err := store.CreateTables(); err != nil {
 		t.Fatalf("failed to create tables: %v", err)
 	}
-	if err := runMigrations(); err != nil {
+	if err := store.RunMigrations(); err != nil {
 		t.Fatalf("failed to run migrations: %v", err)
 	}
-	if err := createViews(); err != nil {
+	if err := store.CreateViews(); err != nil {
 		t.Fatalf("failed to create views: %v", err)
 	}
 
 	t.Cleanup(func() {
-		db.Close()
+		store.DB.Close()
 	})
 }
 
-// createTestUser creates a user via upsertUser and returns the user.
-func createTestUser(t *testing.T, provider, providerID, displayName string) *User {
+// CreateTestUser creates a user via store.UpsertUser and returns it.
+func CreateTestUser(t *testing.T, provider, providerID, displayName string) *store.User {
 	t.Helper()
-	user, err := upsertUser(provider, providerID, displayName, "")
+	user, err := store.UpsertUser(provider, providerID, displayName, "")
 	if err != nil {
 		t.Fatalf("failed to create test user: %v", err)
 	}
 	return user
 }
 
-// makeAuthCookie creates a valid JWT session cookie for the given user ID.
-func makeAuthCookie(t *testing.T, userID int64) *http.Cookie {
+// MakeAuthCookie creates a valid JWT session cookie for the given user ID.
+func MakeAuthCookie(t *testing.T, userID int64) *http.Cookie {
 	t.Helper()
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"sub": userID,
 		"exp": time.Now().Add(7 * 24 * time.Hour).Unix(),
 	})
-	tokenString, err := token.SignedString(jwtSecret)
+	tokenString, err := token.SignedString(auth.TestJWTSecret())
 	if err != nil {
 		t.Fatalf("failed to sign JWT: %v", err)
 	}
@@ -65,8 +69,8 @@ func makeAuthCookie(t *testing.T, userID int64) *http.Cookie {
 	}
 }
 
-// jsonRequest builds an *http.Request with a JSON body and optional session cookie.
-func jsonRequest(t *testing.T, method, url string, body interface{}, cookie *http.Cookie) *http.Request {
+// JSONRequest builds an *http.Request with a JSON body and optional session cookie.
+func JSONRequest(t *testing.T, method, url string, body interface{}, cookie *http.Cookie) *http.Request {
 	t.Helper()
 	var reqBody *bytes.Buffer
 	if body != nil {

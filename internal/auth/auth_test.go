@@ -1,4 +1,4 @@
-package main
+package auth_test
 
 import (
 	"encoding/json"
@@ -8,67 +8,70 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"wordle-six/internal/auth"
+	"wordle-six/internal/store"
+	"wordle-six/internal/testutil"
 )
 
-// --- validateAvatarURL tests ---
+// --- ValidateAvatarURL tests ---
 
 func TestValidateAvatarURL_ValidGitHub(t *testing.T) {
 	url := "https://avatars.githubusercontent.com/u/12345"
-	if got := validateAvatarURL(url); got != url {
+	if got := auth.ValidateAvatarURL(url); got != url {
 		t.Errorf("expected %q, got %q", url, got)
 	}
 }
 
 func TestValidateAvatarURL_ValidDiscord(t *testing.T) {
 	url := "https://cdn.discordapp.com/avatars/123/abc.png"
-	if got := validateAvatarURL(url); got != url {
+	if got := auth.ValidateAvatarURL(url); got != url {
 		t.Errorf("expected %q, got %q", url, got)
 	}
 }
 
 func TestValidateAvatarURL_ValidGoogle(t *testing.T) {
 	url := "https://lh3.googleusercontent.com/a/photo"
-	if got := validateAvatarURL(url); got != url {
+	if got := auth.ValidateAvatarURL(url); got != url {
 		t.Errorf("expected %q, got %q", url, got)
 	}
 }
 
 func TestValidateAvatarURL_RejectsHTTP(t *testing.T) {
 	url := "http://avatars.githubusercontent.com/u/12345"
-	if got := validateAvatarURL(url); got != "" {
+	if got := auth.ValidateAvatarURL(url); got != "" {
 		t.Errorf("expected empty for HTTP URL, got %q", got)
 	}
 }
 
 func TestValidateAvatarURL_RejectsUnknownHost(t *testing.T) {
 	url := "https://evil.com/avatar.png"
-	if got := validateAvatarURL(url); got != "" {
+	if got := auth.ValidateAvatarURL(url); got != "" {
 		t.Errorf("expected empty for unknown host, got %q", got)
 	}
 }
 
 func TestValidateAvatarURL_Empty(t *testing.T) {
-	if got := validateAvatarURL(""); got != "" {
+	if got := auth.ValidateAvatarURL(""); got != "" {
 		t.Errorf("expected empty for empty input, got %q", got)
 	}
 }
 
 func TestValidateAvatarURL_Malformed(t *testing.T) {
-	if got := validateAvatarURL("://not-a-url"); got != "" {
+	if got := auth.ValidateAvatarURL("://not-a-url"); got != "" {
 		t.Errorf("expected empty for malformed URL, got %q", got)
 	}
 }
 
-// --- getUserFromRequest tests ---
+// --- GetUserFromRequest tests ---
 
 func TestGetUserFromRequest_ValidJWT(t *testing.T) {
-	setupTestDB(t)
-	user := createTestUser(t, "github", "1", "testuser")
+	testutil.SetupTestDB(t)
+	user := testutil.CreateTestUser(t, "github", "1", "testuser")
 
 	req := httptest.NewRequest("GET", "/auth/me", nil)
-	req.AddCookie(makeAuthCookie(t, user.ID))
+	req.AddCookie(testutil.MakeAuthCookie(t, user.ID))
 
-	got := getUserFromRequest(req)
+	got := auth.GetUserFromRequest(req)
 	if got == nil {
 		t.Fatal("expected non-nil user")
 	}
@@ -78,27 +81,27 @@ func TestGetUserFromRequest_ValidJWT(t *testing.T) {
 }
 
 func TestGetUserFromRequest_ExpiredJWT(t *testing.T) {
-	setupTestDB(t)
-	user := createTestUser(t, "github", "1", "testuser")
+	testutil.SetupTestDB(t)
+	user := testutil.CreateTestUser(t, "github", "1", "testuser")
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"sub": user.ID,
 		"exp": time.Now().Add(-1 * time.Hour).Unix(),
 	})
-	tokenString, _ := token.SignedString(jwtSecret)
+	tokenString, _ := token.SignedString(auth.TestJWTSecret())
 
 	req := httptest.NewRequest("GET", "/auth/me", nil)
 	req.AddCookie(&http.Cookie{Name: "session", Value: tokenString})
 
-	got := getUserFromRequest(req)
+	got := auth.GetUserFromRequest(req)
 	if got != nil {
 		t.Error("expected nil for expired JWT")
 	}
 }
 
 func TestGetUserFromRequest_WrongSignature(t *testing.T) {
-	setupTestDB(t)
-	user := createTestUser(t, "github", "1", "testuser")
+	testutil.SetupTestDB(t)
+	user := testutil.CreateTestUser(t, "github", "1", "testuser")
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"sub": user.ID,
@@ -109,7 +112,7 @@ func TestGetUserFromRequest_WrongSignature(t *testing.T) {
 	req := httptest.NewRequest("GET", "/auth/me", nil)
 	req.AddCookie(&http.Cookie{Name: "session", Value: tokenString})
 
-	got := getUserFromRequest(req)
+	got := auth.GetUserFromRequest(req)
 	if got != nil {
 		t.Error("expected nil for wrong signature")
 	}
@@ -117,34 +120,34 @@ func TestGetUserFromRequest_WrongSignature(t *testing.T) {
 
 func TestGetUserFromRequest_NoCookie(t *testing.T) {
 	req := httptest.NewRequest("GET", "/auth/me", nil)
-	got := getUserFromRequest(req)
+	got := auth.GetUserFromRequest(req)
 	if got != nil {
 		t.Error("expected nil when no cookie present")
 	}
 }
 
 func TestGetUserFromRequest_NonExistentUser(t *testing.T) {
-	setupTestDB(t)
+	testutil.SetupTestDB(t)
 
 	req := httptest.NewRequest("GET", "/auth/me", nil)
-	req.AddCookie(makeAuthCookie(t, 99999))
+	req.AddCookie(testutil.MakeAuthCookie(t, 99999))
 
-	got := getUserFromRequest(req)
+	got := auth.GetUserFromRequest(req)
 	if got != nil {
 		t.Error("expected nil for non-existent user ID in JWT")
 	}
 }
 
 func TestGetUserFromRequest_BannedUser(t *testing.T) {
-	setupTestDB(t)
-	user := createTestUser(t, "github", "1", "banned")
-	banUser(user.ID)
+	testutil.SetupTestDB(t)
+	user := testutil.CreateTestUser(t, "github", "1", "banned")
+	store.BanUser(user.ID)
 
 	req := httptest.NewRequest("GET", "/auth/me", nil)
-	req.AddCookie(makeAuthCookie(t, user.ID))
+	req.AddCookie(testutil.MakeAuthCookie(t, user.ID))
 
-	// getUserFromRequest returns the user even if banned — handlers check .Banned
-	got := getUserFromRequest(req)
+	// GetUserFromRequest returns the user even if banned — handlers check .Banned
+	got := auth.GetUserFromRequest(req)
 	if got == nil {
 		t.Fatal("expected non-nil user even if banned")
 	}
@@ -153,18 +156,18 @@ func TestGetUserFromRequest_BannedUser(t *testing.T) {
 	}
 }
 
-// --- handleAuthMe tests ---
+// --- HandleAuthMe tests ---
 
 func TestHandleAuthMe_LoggedIn(t *testing.T) {
-	setupTestDB(t)
-	user := createTestUser(t, "github", "1", "testuser")
-	updateCustomName(user.ID, "MyName")
+	testutil.SetupTestDB(t)
+	user := testutil.CreateTestUser(t, "github", "1", "testuser")
+	store.UpdateCustomName(user.ID, "MyName")
 
 	req := httptest.NewRequest("GET", "/auth/me", nil)
-	req.AddCookie(makeAuthCookie(t, user.ID))
+	req.AddCookie(testutil.MakeAuthCookie(t, user.ID))
 	rr := httptest.NewRecorder()
 
-	handleAuthMe(rr, req)
+	auth.HandleAuthMe(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rr.Code)
@@ -182,7 +185,7 @@ func TestHandleAuthMe_LoggedOut(t *testing.T) {
 	req := httptest.NewRequest("GET", "/auth/me", nil)
 	rr := httptest.NewRecorder()
 
-	handleAuthMe(rr, req)
+	auth.HandleAuthMe(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rr.Code)
@@ -195,13 +198,13 @@ func TestHandleAuthMe_LoggedOut(t *testing.T) {
 	}
 }
 
-// --- handleAuthLogout tests ---
+// --- HandleAuthLogout tests ---
 
 func TestHandleAuthLogout_ClearsCookie(t *testing.T) {
 	req := httptest.NewRequest("POST", "/auth/logout", nil)
 	rr := httptest.NewRecorder()
 
-	handleAuthLogout(rr, req)
+	auth.HandleAuthLogout(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rr.Code)
@@ -219,12 +222,12 @@ func TestHandleAuthLogout_ClearsCookie(t *testing.T) {
 	}
 }
 
-// --- handleAuthCallback tests ---
+// --- HandleAuthCallback tests ---
 
 func TestHandleAuthCallback_MockOAuth(t *testing.T) {
-	setupTestDB(t)
+	testutil.SetupTestDB(t)
 
-	// Create a mock OAuth server that handles both token exchange and user info
+	// Create a mock OAuth server
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
@@ -243,15 +246,11 @@ func TestHandleAuthCallback_MockOAuth(t *testing.T) {
 	}))
 	defer mockServer.Close()
 
-	// Save and restore original OAuth client
-	origClient := oauthHTTPClient
-	oauthHTTPClient = mockServer.Client()
-	defer func() { oauthHTTPClient = origClient }()
+	origClient := auth.OAuthHTTPClient
+	auth.OAuthHTTPClient = mockServer.Client()
+	defer func() { auth.OAuthHTTPClient = origClient }()
 
-	// We can't easily test the full callback flow without also mocking
-	// getOAuthConfig, but we can verify the mock server works correctly
-	// by making a direct request to it
-	resp, err := oauthHTTPClient.Post(mockServer.URL+"/token", "application/x-www-form-urlencoded", nil)
+	resp, err := auth.OAuthHTTPClient.Post(mockServer.URL+"/token", "application/x-www-form-urlencoded", nil)
 	if err != nil {
 		t.Fatalf("mock token request failed: %v", err)
 	}
@@ -268,7 +267,7 @@ func TestHandleAuthCallback_MissingState(t *testing.T) {
 	req := httptest.NewRequest("GET", "/auth/github/callback?code=abc", nil)
 	rr := httptest.NewRecorder()
 
-	handleAuthCallback(rr, req)
+	auth.HandleAuthCallback(rr, req)
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected 400 for missing state cookie, got %d", rr.Code)
@@ -280,7 +279,7 @@ func TestHandleAuthCallback_StateMismatch(t *testing.T) {
 	req.AddCookie(&http.Cookie{Name: "oauth_state", Value: "correct"})
 	rr := httptest.NewRecorder()
 
-	handleAuthCallback(rr, req)
+	auth.HandleAuthCallback(rr, req)
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected 400 for state mismatch, got %d", rr.Code)
@@ -292,7 +291,7 @@ func TestHandleAuthCallback_MissingCode(t *testing.T) {
 	req.AddCookie(&http.Cookie{Name: "oauth_state", Value: "abc"})
 	rr := httptest.NewRecorder()
 
-	handleAuthCallback(rr, req)
+	auth.HandleAuthCallback(rr, req)
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected 400 for missing code, got %d", rr.Code)

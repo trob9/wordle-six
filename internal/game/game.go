@@ -1,4 +1,4 @@
-package main
+package game
 
 import (
 	"bytes"
@@ -11,7 +11,12 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"wordle-six/internal/auth"
+	"wordle-six/internal/store"
 )
+
+// --- Game progress ---
 
 type GameProgress struct {
 	Guesses  []string `json:"guesses"`
@@ -20,9 +25,9 @@ type GameProgress struct {
 	Won      bool     `json:"won"`
 }
 
-func handleGetGameState(w http.ResponseWriter, r *http.Request) {
+func HandleGetGameState(w http.ResponseWriter, r *http.Request) {
 	log.Printf("GET /api/game-state called, date=%s", r.URL.Query().Get("date"))
-	user := getUserFromRequest(r)
+	user := auth.GetUserFromRequest(r)
 	if user == nil {
 		log.Printf("GET /api/game-state: not authenticated")
 		http.Error(w, "Not authenticated", http.StatusUnauthorized)
@@ -38,13 +43,12 @@ func handleGetGameState(w http.ResponseWriter, r *http.Request) {
 	var guessesJSON string
 	var hardMode, gameOver, won bool
 
-	err := db.QueryRow(
+	err := store.DB.QueryRow(
 		"SELECT guesses, hard_mode, game_over, won FROM game_progress WHERE user_id = ? AND date = ?",
 		user.ID, date,
 	).Scan(&guessesJSON, &hardMode, &gameOver, &won)
 
 	if err != nil {
-		// No progress found — return empty state
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(GameProgress{Guesses: []string{}})
 		return
@@ -64,10 +68,9 @@ func handleGetGameState(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func handleSaveProgress(w http.ResponseWriter, r *http.Request) {
-	user := getUserFromRequest(r)
+func HandleSaveProgress(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUserFromRequest(r)
 
-	// Decode body before auth check so we can log anonymous guess attempts.
 	var body struct {
 		Date     string   `json:"date"`
 		Guesses  []string `json:"guesses"`
@@ -78,9 +81,8 @@ func handleSaveProgress(w http.ResponseWriter, r *http.Request) {
 	decodeErr := json.NewDecoder(r.Body).Decode(&body)
 
 	if user == nil {
-		// Log the anonymous guess so we can detect logged-out play before login.
 		if decodeErr == nil && len(body.Guesses) > 0 && body.Date != "" {
-			logGuessEvent(0, "", body.Date, body.Guesses, body.HardMode, body.GameOver, body.Won, false, clientIP(r))
+			logGuessEvent(0, "", body.Date, body.Guesses, body.HardMode, body.GameOver, body.Won, false, r.Header.Get("CF-Connecting-IP"))
 		}
 		http.Error(w, "Not authenticated", http.StatusUnauthorized)
 		return
@@ -96,19 +98,17 @@ func handleSaveProgress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate guesses count (max 6 guesses in a game)
 	if len(body.Guesses) > 6 {
 		http.Error(w, "Too many guesses", http.StatusBadRequest)
 		return
 	}
 
-	// Check for existing server record before saving — used to detect anon→login sync.
 	var existingCount int
-	db.QueryRow("SELECT COUNT(*) FROM game_progress WHERE user_id = ? AND date = ?", user.ID, body.Date).Scan(&existingCount)
+	store.DB.QueryRow("SELECT COUNT(*) FROM game_progress WHERE user_id = ? AND date = ?", user.ID, body.Date).Scan(&existingCount)
 
 	guessesJSON, _ := json.Marshal(body.Guesses)
 
-	_, err := db.Exec(`
+	_, err := store.DB.Exec(`
 		INSERT INTO game_progress (user_id, date, guesses, hard_mode, game_over, won)
 		VALUES (?, ?, ?, ?, ?, ?)
 		ON CONFLICT(user_id, date) DO UPDATE SET
@@ -124,32 +124,28 @@ func handleSaveProgress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// If game is over, ensure a game_results entry exists (don't rely on client)
 	if body.GameOver {
 		guessCount := len(body.Guesses)
 		var guessPtr *int
 		if body.Won && guessCount > 0 {
 			guessPtr = &guessCount
 		}
-		if err := insertGameResult(user.ID, body.Date, body.Won, guessPtr, body.HardMode); err != nil {
+		if err := store.InsertGameResult(user.ID, body.Date, body.Won, guessPtr, body.HardMode); err != nil {
 			log.Printf("POST /api/save-progress: auto-insert game_result failed: %v", err)
 		}
 	}
 
-	// Anon→login sync: user has no server record for today but submitted multiple guesses at once.
 	anonSync := existingCount == 0 && len(body.Guesses) > 1
 	name := user.DisplayName
 	if user.CustomName != nil {
 		name = *user.CustomName
 	}
-	logGuessEvent(user.ID, name, body.Date, body.Guesses, body.HardMode, body.GameOver, body.Won, anonSync, clientIP(r))
+	logGuessEvent(user.ID, name, body.Date, body.Guesses, body.HardMode, body.GameOver, body.Won, anonSync, r.Header.Get("CF-Connecting-IP"))
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{"ok": true})
 }
 
-// logGuessEvent emits a structured JSON guess event to stdout (picked up by Loki).
-// userID is 0 and displayName is "" for anonymous users. anonSync flags a batch of guesses synced after login.
 func logGuessEvent(userID int64, displayName string, date string, guesses []string, hardMode, gameOver, won, anonSync bool, ip string) {
 	if len(guesses) == 0 {
 		return
@@ -179,6 +175,8 @@ func logGuessEvent(userID int64, displayName string, date string, guesses []stri
 	fmt.Println(string(b))
 }
 
+// --- User stats ---
+
 type UserStats struct {
 	Played        int    `json:"played"`
 	Won           int    `json:"won"`
@@ -191,8 +189,8 @@ type UserStats struct {
 	HardMode      bool   `json:"hardMode"`
 }
 
-func handleGetUserStats(w http.ResponseWriter, r *http.Request) {
-	user := getUserFromRequest(r)
+func HandleGetUserStats(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUserFromRequest(r)
 	if user == nil {
 		http.Error(w, "Not authenticated", http.StatusUnauthorized)
 		return
@@ -203,12 +201,11 @@ func handleGetUserStats(w http.ResponseWriter, r *http.Request) {
 	var lastDate *string
 	var hardModeVal bool
 
-	err := db.QueryRow(
+	err := store.DB.QueryRow(
 		"SELECT played, won, played_hard, won_hard, distribution, last_date, hard_mode FROM user_stats WHERE user_id = ?",
 		user.ID,
 	).Scan(&played, &won, &playedHard, &wonHard, &distributionJSON, &lastDate, &hardModeVal)
-	// Derive both streaks from game_results via view — not from client-synced user_stats.
-	db.QueryRow("SELECT COALESCE(current_streak, 0), COALESCE(max_streak, 0) FROM streak_view WHERE user_id = ?", user.ID).Scan(&currentStreak, &maxStreak)
+	store.DB.QueryRow("SELECT COALESCE(current_streak, 0), COALESCE(max_streak, 0) FROM streak_view WHERE user_id = ?", user.ID).Scan(&currentStreak, &maxStreak)
 
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
@@ -240,8 +237,8 @@ func handleGetUserStats(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func handleSaveUserStats(w http.ResponseWriter, r *http.Request) {
-	user := getUserFromRequest(r)
+func HandleSaveUserStats(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUserFromRequest(r)
 	if user == nil {
 		http.Error(w, "Not authenticated", http.StatusUnauthorized)
 		return
@@ -255,7 +252,7 @@ func handleSaveUserStats(w http.ResponseWriter, r *http.Request) {
 
 	distributionJSON, _ := json.Marshal(body.Distribution)
 
-	_, err := db.Exec(`
+	_, err := store.DB.Exec(`
 		INSERT INTO user_stats (user_id, played, won, played_hard, won_hard, distribution, last_date, hard_mode)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(user_id) DO UPDATE SET
@@ -278,12 +275,14 @@ func handleSaveUserStats(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{"ok":true}`))
 }
 
+// --- Display name ---
+
 // Only allow alphanumeric, spaces, hyphens, underscores
 var validNamePattern = regexp.MustCompile(`^[\w\s\-]+$`)
 
-func sanitizeName(name string) string {
+// SanitizeName trims whitespace and collapses internal spaces.
+func SanitizeName(name string) string {
 	name = strings.TrimSpace(name)
-	// Collapse multiple spaces
 	name = regexp.MustCompile(`\s+`).ReplaceAllString(name, " ")
 	return name
 }
@@ -293,7 +292,6 @@ func checkProfanity(text string) (bool, error) {
 	client := &http.Client{Timeout: 3 * time.Second}
 	resp, err := client.Post("https://vector.profanity.dev", "application/json", bytes.NewReader(payload))
 	if err != nil {
-		// Fail closed: reject name if profanity API is unreachable
 		log.Printf("Profanity API error (rejecting name): %v", err)
 		return false, fmt.Errorf("profanity check unavailable")
 	}
@@ -308,8 +306,8 @@ func checkProfanity(text string) (bool, error) {
 	return result.IsProfanity, nil
 }
 
-func handleUpdateDisplayName(w http.ResponseWriter, r *http.Request) {
-	user := getUserFromRequest(r)
+func HandleUpdateDisplayName(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUserFromRequest(r)
 	if user == nil {
 		http.Error(w, "Not authenticated", http.StatusUnauthorized)
 		return
@@ -327,7 +325,7 @@ func handleUpdateDisplayName(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	name := sanitizeName(body.Name)
+	name := SanitizeName(body.Name)
 	nameLen := utf8.RuneCountInString(name)
 	if name == "" || nameLen < 1 || nameLen > 20 {
 		http.Error(w, "Name must be 1-20 characters", http.StatusBadRequest)
@@ -349,7 +347,7 @@ func handleUpdateDisplayName(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := updateCustomName(user.ID, name); err != nil {
+	if err := store.UpdateCustomName(user.ID, name); err != nil {
 		http.Error(w, "Failed to update name", http.StatusInternalServerError)
 		return
 	}
@@ -358,9 +356,10 @@ func handleUpdateDisplayName(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{"ok":true}`))
 }
 
-// Admin: ban/unban a user.
-func handleBanUser(w http.ResponseWriter, r *http.Request) {
-	admin := getUserFromRequest(r)
+// --- Admin ---
+
+func HandleBanUser(w http.ResponseWriter, r *http.Request) {
+	admin := auth.GetUserFromRequest(r)
 	if admin == nil || !admin.IsAdmin {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
@@ -382,9 +381,9 @@ func handleBanUser(w http.ResponseWriter, r *http.Request) {
 
 	var err error
 	if body.Ban {
-		err = banUser(body.UserID)
+		err = store.BanUser(body.UserID)
 	} else {
-		err = unbanUser(body.UserID)
+		err = store.UnbanUser(body.UserID)
 	}
 	if err != nil {
 		http.Error(w, "Failed to update ban status", http.StatusInternalServerError)
@@ -395,8 +394,8 @@ func handleBanUser(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{"ok":true}`))
 }
 
-func handleListUsers(w http.ResponseWriter, r *http.Request) {
-	admin := getUserFromRequest(r)
+func HandleListUsers(w http.ResponseWriter, r *http.Request) {
+	admin := auth.GetUserFromRequest(r)
 	if admin == nil || !admin.IsAdmin {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
@@ -410,7 +409,7 @@ func handleListUsers(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	rows, err := db.Query("SELECT id, provider, display_name, COALESCE(custom_name, ''), COALESCE(avatar_url, ''), banned FROM users ORDER BY id LIMIT ?", limit)
+	rows, err := store.DB.Query("SELECT id, provider, display_name, COALESCE(custom_name, ''), COALESCE(avatar_url, ''), banned FROM users ORDER BY id LIMIT ?", limit)
 	if err != nil {
 		http.Error(w, "Failed to query users", http.StatusInternalServerError)
 		return
@@ -438,4 +437,181 @@ func handleListUsers(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{"users": users})
+}
+
+// --- Leaderboard ---
+
+type LeaderboardEntry struct {
+	Rank         int     `json:"rank"`
+	UserID       int64   `json:"user_id"`
+	DisplayName  string  `json:"display_name"`
+	AvatarURL    string  `json:"avatar_url,omitempty"`
+	WeightedAvg  float64 `json:"weighted_avg"`
+	TrueAvg      float64 `json:"true_avg"`
+	WinRate      float64 `json:"win_rate"`
+	GamesPlayed  int     `json:"games_played"`
+	Streak       int     `json:"current_streak"`
+	HardModeWins int     `json:"hard_mode_wins"`
+}
+
+func HandleGetLeaderboard(w http.ResponseWriter, r *http.Request) {
+	limitStr := r.URL.Query().Get("limit")
+	limit := 50
+	if limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 100 {
+			limit = l
+		}
+	}
+
+	// Bayesian weighted average: pulls players with few games toward the global mean.
+	// Formula: bayesian_avg = (C * global_mean + player_sum) / (C + games_played)
+	// C = 10. Hard mode wins get 10% bonus (guesses * 0.9). Losses count as 8.
+	rows, err := store.DB.Query(`
+		WITH global AS (
+			SELECT SUM(
+				CASE
+					WHEN gr.won AND gr.hard_mode THEN gr.guesses * 0.9
+					WHEN gr.won THEN gr.guesses
+					ELSE 8.0
+				END
+			) / COUNT(*) AS mean
+			FROM game_results gr
+			JOIN users u ON u.id = gr.user_id
+			WHERE u.banned = FALSE
+		),
+		player AS (
+			SELECT
+				u.id AS user_id,
+				COALESCE(u.custom_name, u.display_name) AS display_name,
+				COALESCE(u.avatar_url, '') AS avatar_url,
+				SUM(
+					CASE
+						WHEN gr.won AND gr.hard_mode THEN gr.guesses * 0.9
+						WHEN gr.won THEN gr.guesses
+						ELSE 8.0
+					END
+				) AS score_sum,
+				CAST(SUM(CASE WHEN gr.won THEN gr.guesses ELSE 8 END) AS REAL) / COUNT(*) AS true_avg,
+				CAST(SUM(CASE WHEN gr.won THEN 1 ELSE 0 END) AS REAL) / COUNT(*) AS win_rate,
+				COUNT(*) AS games_played,
+				SUM(CASE WHEN gr.won AND gr.hard_mode THEN 1 ELSE 0 END) AS hard_mode_wins
+			FROM users u
+			JOIN game_results gr ON gr.user_id = u.id
+			WHERE u.banned = FALSE
+			GROUP BY u.id
+			HAVING COUNT(*) >= 1
+		)
+		SELECT
+			p.user_id,
+			p.display_name,
+			p.avatar_url,
+			(10.0 * g.mean + p.score_sum) / (10.0 + p.games_played) AS weighted_avg,
+			p.true_avg,
+			p.win_rate,
+			p.games_played,
+			p.hard_mode_wins,
+			COALESCE(sv.current_streak, 0) AS current_streak
+		FROM player p
+		CROSS JOIN global g
+		LEFT JOIN streak_view sv ON sv.user_id = p.user_id
+		ORDER BY weighted_avg ASC, win_rate DESC, games_played DESC
+		LIMIT ?
+	`, limit)
+	if err != nil {
+		http.Error(w, "Failed to query leaderboard", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	var entries []LeaderboardEntry
+	rank := 1
+	for rows.Next() {
+		var e LeaderboardEntry
+		err := rows.Scan(&e.UserID, &e.DisplayName, &e.AvatarURL, &e.WeightedAvg, &e.TrueAvg, &e.WinRate, &e.GamesPlayed, &e.HardModeWins, &e.Streak)
+		if err != nil {
+			continue
+		}
+		e.Rank = rank
+		rank++
+		entries = append(entries, e)
+	}
+
+	if entries == nil {
+		entries = []LeaderboardEntry{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{"leaderboard": entries})
+}
+
+func HandleSubmitResult(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUserFromRequest(r)
+	if user == nil {
+		http.Error(w, "Not authenticated", http.StatusUnauthorized)
+		return
+	}
+
+	var body struct {
+		Date     string `json:"date"`
+		Won      bool   `json:"won"`
+		Guesses  *int   `json:"guesses"`
+		HardMode bool   `json:"hard_mode"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if body.Date == "" {
+		http.Error(w, "Date is required", http.StatusBadRequest)
+		return
+	}
+
+	if body.Won && (body.Guesses == nil || *body.Guesses < 1 || *body.Guesses > 6) {
+		http.Error(w, "Invalid guess count", http.StatusBadRequest)
+		return
+	}
+
+	if err := store.InsertGameResult(user.ID, body.Date, body.Won, body.Guesses, body.HardMode); err != nil {
+		http.Error(w, "Failed to save result", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{"ok": true})
+}
+
+// --- Fingerprint ---
+
+func HandleFingerprint(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Hash      string `json:"hash"`
+		UserAgent string `json:"user_agent"`
+		Timezone  string `json:"timezone"`
+		Screen    string `json:"screen"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+
+	user := auth.GetUserFromRequest(r)
+	var userID int64
+	if user != nil {
+		userID = user.ID
+	}
+
+	entry := map[string]interface{}{
+		"ts":      time.Now().UTC().Format(time.RFC3339),
+		"event":   "fingerprint",
+		"fp_hash": body.Hash,
+		"tz":      body.Timezone,
+		"screen":  body.Screen,
+		"ip":      r.Header.Get("CF-Connecting-IP"),
+		"user_id": userID,
+	}
+	b, _ := json.Marshal(entry)
+	log.Println(string(b))
+
+	w.WriteHeader(http.StatusNoContent)
 }

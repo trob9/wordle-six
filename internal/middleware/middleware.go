@@ -1,12 +1,94 @@
-package main
+package middleware
 
 import (
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
+
+	"golang.org/x/time/rate"
+	"wordle-six/internal/netutil"
 )
+
+// --- Body limiting ---
+
+// LimitBody wraps a handler to enforce a max request body size.
+func LimitBody(maxBytes int64, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
+		next(w, r)
+	}
+}
+
+// --- Per-IP rate limiting ---
+
+type ipLimiter struct {
+	limiter  *rate.Limiter
+	lastSeen time.Time
+}
+
+var (
+	limiters   = make(map[string]*ipLimiter)
+	limitersMu sync.Mutex
+)
+
+func init() {
+	// Clean up stale entries every 5 minutes
+	go func() {
+		for {
+			time.Sleep(5 * time.Minute)
+			limitersMu.Lock()
+			for ip, l := range limiters {
+				if time.Since(l.lastSeen) > 10*time.Minute {
+					delete(limiters, ip)
+				}
+			}
+			limitersMu.Unlock()
+		}
+	}()
+}
+
+func getLimiter(ip string, rps rate.Limit, burst int) *rate.Limiter {
+	limitersMu.Lock()
+	defer limitersMu.Unlock()
+
+	if l, ok := limiters[ip]; ok {
+		l.lastSeen = time.Now()
+		return l.limiter
+	}
+	l := rate.NewLimiter(rps, burst)
+	limiters[ip] = &ipLimiter{limiter: l, lastSeen: time.Now()}
+	return l
+}
+
+// RateLimit wraps a handler with per-IP rate limiting.
+func RateLimit(rps rate.Limit, burst int, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ip := netutil.ClientIP(r)
+		if !getLimiter(ip, rps, burst).Allow() {
+			http.Error(w, "Too many requests", http.StatusTooManyRequests)
+			return
+		}
+		next(w, r)
+	}
+}
+
+// RequireJSON rejects POST requests that don't have Content-Type: application/json.
+// This provides CSRF protection since HTML forms cannot send application/json.
+func RequireJSON(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ct := r.Header.Get("Content-Type")
+		if !strings.HasPrefix(ct, "application/json") {
+			http.Error(w, "Content-Type must be application/json", http.StatusUnsupportedMediaType)
+			return
+		}
+		next(w, r)
+	}
+}
+
+// --- Access logging ---
 
 // responseWriter wraps http.ResponseWriter to capture status code and bytes written.
 type responseWriter struct {
@@ -55,16 +137,16 @@ var unusualMethods = map[string]bool{
 	"SEARCH": true,
 }
 
-// accessLog is an HTTP middleware that logs every request as structured JSON.
+// AccessLog is an HTTP middleware that logs every request as structured JSON.
 // It detects scanner patterns and flags suspicious requests for easy monitoring.
-func accessLog(next http.Handler) http.Handler {
+func AccessLog(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		rw := &responseWriter{ResponseWriter: w, status: 200}
 		next.ServeHTTP(rw, r)
 		latency := time.Since(start)
 
-		ip := clientIP(r)
+		ip := netutil.ClientIP(r)
 		ua := r.UserAgent()
 		path := r.URL.Path
 		method := r.Method
@@ -125,8 +207,8 @@ func detectFlags(method, path, ua string, status int) []string {
 	return flags
 }
 
-// logAuthEvent writes a structured JSON auth event log entry.
-func logAuthEvent(event, provider, result, ip string, extra map[string]interface{}) {
+// LogAuthEvent writes a structured JSON auth event log entry.
+func LogAuthEvent(event, provider, result, ip string, extra map[string]interface{}) {
 	entry := map[string]interface{}{
 		"ts":       time.Now().UTC().Format(time.RFC3339),
 		"event":    event,

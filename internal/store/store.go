@@ -1,4 +1,4 @@
-package main
+package store
 
 import (
 	"database/sql"
@@ -8,9 +8,9 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-var db *sql.DB
+var DB *sql.DB
 
-func initDB() error {
+func InitDB() error {
 	dbPath := os.Getenv("DB_PATH")
 	if dbPath == "" {
 		dbPath = "/data/wordle-six.db"
@@ -22,22 +22,22 @@ func initDB() error {
 	}
 
 	var err error
-	db, err = sql.Open("sqlite3", dbPath+"?_journal_mode=WAL&_busy_timeout=5000")
+	DB, err = sql.Open("sqlite3", dbPath+"?_journal_mode=WAL&_busy_timeout=5000")
 	if err != nil {
 		return err
 	}
 
-	if err := createTables(); err != nil {
+	if err := CreateTables(); err != nil {
 		return err
 	}
-	if err := runMigrations(); err != nil {
+	if err := RunMigrations(); err != nil {
 		return err
 	}
-	return createViews()
+	return CreateViews()
 }
 
-func createTables() error {
-	_, err := db.Exec(`
+func CreateTables() error {
+	_, err := DB.Exec(`
 		CREATE TABLE IF NOT EXISTS users (
 			id INTEGER PRIMARY KEY,
 			provider TEXT NOT NULL,
@@ -100,8 +100,8 @@ type User struct {
 	IsNew       bool    `json:"is_new,omitempty"`
 }
 
-func upsertUser(provider, providerID, displayName, avatarURL string) (*User, error) {
-	_, err := db.Exec(`
+func UpsertUser(provider, providerID, displayName, avatarURL string) (*User, error) {
+	_, err := DB.Exec(`
 		INSERT INTO users (provider, provider_id, display_name, avatar_url)
 		VALUES (?, ?, ?, ?)
 		ON CONFLICT(provider, provider_id)
@@ -115,7 +115,7 @@ func upsertUser(provider, providerID, displayName, avatarURL string) (*User, err
 	// for upserts because SQLite doesn't update last_insert_rowid on the
 	// conflict/update path, returning a stale value instead.
 	var id int64
-	row := db.QueryRow("SELECT id FROM users WHERE provider = ? AND provider_id = ?", provider, providerID)
+	row := DB.QueryRow("SELECT id FROM users WHERE provider = ? AND provider_id = ?", provider, providerID)
 	if err := row.Scan(&id); err != nil {
 		return nil, err
 	}
@@ -129,10 +129,10 @@ func upsertUser(provider, providerID, displayName, avatarURL string) (*User, err
 	}, nil
 }
 
-func getUserByID(id int64) (*User, error) {
+func GetUserByID(id int64) (*User, error) {
 	u := &User{}
 	var customName *string
-	err := db.QueryRow("SELECT id, provider, provider_id, display_name, custom_name, COALESCE(avatar_url, ''), banned, COALESCE(is_admin, FALSE) FROM users WHERE id = ?", id).
+	err := DB.QueryRow("SELECT id, provider, provider_id, display_name, custom_name, COALESCE(avatar_url, ''), banned, COALESCE(is_admin, FALSE) FROM users WHERE id = ?", id).
 		Scan(&u.ID, &u.Provider, &u.ProviderID, &u.DisplayName, &customName, &u.AvatarURL, &u.Banned, &u.IsAdmin)
 	if err != nil {
 		return nil, err
@@ -142,20 +142,20 @@ func getUserByID(id int64) (*User, error) {
 	return u, nil
 }
 
-func banUser(userID int64) error {
-	_, err := db.Exec("UPDATE users SET banned = TRUE WHERE id = ?", userID)
+func BanUser(userID int64) error {
+	_, err := DB.Exec("UPDATE users SET banned = TRUE WHERE id = ?", userID)
 	return err
 }
 
-func unbanUser(userID int64) error {
-	_, err := db.Exec("UPDATE users SET banned = FALSE WHERE id = ?", userID)
+func UnbanUser(userID int64) error {
+	_, err := DB.Exec("UPDATE users SET banned = FALSE WHERE id = ?", userID)
 	return err
 }
 
-// createViews drops and recreates all derived views so definition changes
+// CreateViews drops and recreates all derived views so definition changes
 // take effect on every startup without a manual migration step.
-func createViews() error {
-	_, err := db.Exec(`
+func CreateViews() error {
+	_, err := DB.Exec(`
 		DROP VIEW IF EXISTS streak_view;
 
 		CREATE VIEW streak_view AS
@@ -206,24 +206,24 @@ func createViews() error {
 	return err
 }
 
-func runMigrations() error {
-	db.Exec("ALTER TABLE users ADD COLUMN custom_name TEXT")
-	db.Exec("ALTER TABLE users ADD COLUMN banned BOOLEAN NOT NULL DEFAULT FALSE")
-	db.Exec("ALTER TABLE user_stats ADD COLUMN played_hard INTEGER NOT NULL DEFAULT 0")
-	db.Exec("ALTER TABLE user_stats ADD COLUMN won_hard INTEGER NOT NULL DEFAULT 0")
-	db.Exec("ALTER TABLE users ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT FALSE")
+func RunMigrations() error {
+	DB.Exec("ALTER TABLE users ADD COLUMN custom_name TEXT")
+	DB.Exec("ALTER TABLE users ADD COLUMN banned BOOLEAN NOT NULL DEFAULT FALSE")
+	DB.Exec("ALTER TABLE user_stats ADD COLUMN played_hard INTEGER NOT NULL DEFAULT 0")
+	DB.Exec("ALTER TABLE user_stats ADD COLUMN won_hard INTEGER NOT NULL DEFAULT 0")
+	DB.Exec("ALTER TABLE users ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT FALSE")
 	// Bootstrap: first registered user (ID 1) gets admin
-	db.Exec("UPDATE users SET is_admin = TRUE WHERE id = 1 AND is_admin = FALSE")
+	DB.Exec("UPDATE users SET is_admin = TRUE WHERE id = 1 AND is_admin = FALSE")
 	return nil
 }
 
-func updateCustomName(userID int64, name string) error {
-	_, err := db.Exec("UPDATE users SET custom_name = ? WHERE id = ?", name, userID)
+func UpdateCustomName(userID int64, name string) error {
+	_, err := DB.Exec("UPDATE users SET custom_name = ? WHERE id = ?", name, userID)
 	return err
 }
 
-func insertGameResult(userID int64, date string, won bool, guesses *int, hardMode bool) error {
-	_, err := db.Exec(`
+func InsertGameResult(userID int64, date string, won bool, guesses *int, hardMode bool) error {
+	_, err := DB.Exec(`
 		INSERT INTO game_results (user_id, date, won, guesses, hard_mode)
 		VALUES (?, ?, ?, ?, ?)
 		ON CONFLICT(user_id, date) DO NOTHING

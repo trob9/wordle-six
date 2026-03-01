@@ -1,4 +1,4 @@
-package main
+package auth
 
 import (
 	"crypto/rand"
@@ -14,13 +14,17 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"wordle-six/internal/middleware"
+	"wordle-six/internal/netutil"
+	"wordle-six/internal/store"
 )
 
-// oauthHTTPClient is used for all OAuth token exchange and user info requests.
-var oauthHTTPClient = &http.Client{Timeout: 10 * time.Second}
+// OAuthHTTPClient is used for all OAuth token exchange and user info requests.
+// Exported so tests can substitute a mock server.
+var OAuthHTTPClient = &http.Client{Timeout: 10 * time.Second}
 
-// validateAvatarURL ensures avatar URLs are HTTPS and from trusted OAuth providers.
-func validateAvatarURL(rawURL string) string {
+// ValidateAvatarURL ensures avatar URLs are HTTPS and from trusted OAuth providers.
+func ValidateAvatarURL(rawURL string) string {
 	if rawURL == "" {
 		return ""
 	}
@@ -46,7 +50,6 @@ var jwtSecret []byte
 func init() {
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
-		// Generate a random secret if not set (sessions won't survive restarts)
 		b := make([]byte, 32)
 		rand.Read(b)
 		secret = hex.EncodeToString(b)
@@ -54,13 +57,18 @@ func init() {
 	jwtSecret = []byte(secret)
 }
 
+// TestJWTSecret returns the JWT signing key for use in tests.
+func TestJWTSecret() []byte {
+	return jwtSecret
+}
+
 type oauthConfig struct {
-	AuthURL     string
-	TokenURL    string
-	UserInfoURL string
-	ClientID    string
+	AuthURL      string
+	TokenURL     string
+	UserInfoURL  string
+	ClientID     string
 	ClientSecret string
-	Scopes      string
+	Scopes       string
 }
 
 func getOAuthConfig(provider string) (*oauthConfig, error) {
@@ -97,21 +105,21 @@ func getOAuthConfig(provider string) (*oauthConfig, error) {
 	}
 }
 
-func handleAuthStart(w http.ResponseWriter, r *http.Request) {
+func HandleAuthStart(w http.ResponseWriter, r *http.Request) {
 	provider := r.PathValue("provider")
 	cfg, err := getOAuthConfig(provider)
 	if err != nil {
-		logAuthEvent("auth_start", provider, "unknown_provider", clientIP(r), nil)
+		middleware.LogAuthEvent("auth_start", provider, "unknown_provider", netutil.ClientIP(r), nil)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	if cfg.ClientID == "" {
-		logAuthEvent("auth_start", provider, "not_configured", clientIP(r), nil)
+		middleware.LogAuthEvent("auth_start", provider, "not_configured", netutil.ClientIP(r), nil)
 		http.Error(w, provider+" OAuth not configured", http.StatusServiceUnavailable)
 		return
 	}
-	logAuthEvent("auth_start", provider, "initiated", clientIP(r), nil)
+	middleware.LogAuthEvent("auth_start", provider, "initiated", netutil.ClientIP(r), nil)
 
 	// Generate state token for CSRF protection
 	stateBytes := make([]byte, 16)
@@ -131,22 +139,17 @@ func handleAuthStart(w http.ResponseWriter, r *http.Request) {
 	callbackURL := fmt.Sprintf("https://wordle.xxoo.ooo/auth/%s/callback", provider)
 
 	params := url.Values{
-		"client_id":    {cfg.ClientID},
-		"redirect_uri": {callbackURL},
-		"scope":        {cfg.Scopes},
-		"state":        {state},
-	}
-
-	if provider == "google" {
-		params.Set("response_type", "code")
-	} else {
-		params.Set("response_type", "code")
+		"client_id":     {cfg.ClientID},
+		"redirect_uri":  {callbackURL},
+		"scope":         {cfg.Scopes},
+		"state":         {state},
+		"response_type": {"code"},
 	}
 
 	http.Redirect(w, r, cfg.AuthURL+"?"+params.Encode(), http.StatusTemporaryRedirect)
 }
 
-func handleAuthCallback(w http.ResponseWriter, r *http.Request) {
+func HandleAuthCallback(w http.ResponseWriter, r *http.Request) {
 	provider := r.PathValue("provider")
 	log.Printf("OAuth callback: provider=%s", provider)
 
@@ -154,13 +157,13 @@ func handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 	stateCookie, err := r.Cookie("oauth_state")
 	if err != nil {
 		log.Printf("OAuth callback: oauth_state cookie missing: %v", err)
-		logAuthEvent("auth_login", provider, "failure", clientIP(r), map[string]interface{}{"reason": "missing_state_cookie"})
+		middleware.LogAuthEvent("auth_login", provider, "failure", netutil.ClientIP(r), map[string]interface{}{"reason": "missing_state_cookie"})
 		http.Error(w, "Invalid state parameter", http.StatusBadRequest)
 		return
 	}
 	if stateCookie.Value != r.URL.Query().Get("state") {
 		log.Printf("OAuth callback: state mismatch: cookie=%s url=%s", stateCookie.Value, r.URL.Query().Get("state"))
-		logAuthEvent("auth_login", provider, "failure", clientIP(r), map[string]interface{}{"reason": "state_mismatch"})
+		middleware.LogAuthEvent("auth_login", provider, "failure", netutil.ClientIP(r), map[string]interface{}{"reason": "state_mismatch"})
 		http.Error(w, "Invalid state parameter", http.StatusBadRequest)
 		return
 	}
@@ -168,7 +171,7 @@ func handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 	code := r.URL.Query().Get("code")
 	if code == "" {
 		log.Printf("OAuth callback: no code parameter in URL")
-		logAuthEvent("auth_login", provider, "failure", clientIP(r), map[string]interface{}{"reason": "no_code"})
+		middleware.LogAuthEvent("auth_login", provider, "failure", netutil.ClientIP(r), map[string]interface{}{"reason": "no_code"})
 		http.Error(w, "No code provided", http.StatusBadRequest)
 		return
 	}
@@ -194,7 +197,7 @@ func handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "application/json")
 
-	resp, err := oauthHTTPClient.Do(req)
+	resp, err := OAuthHTTPClient.Do(req)
 	if err != nil {
 		log.Printf("OAuth callback: token exchange HTTP error: %v", err)
 		http.Error(w, "Token exchange failed", http.StatusInternalServerError)
@@ -224,7 +227,7 @@ func handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 	userReq.Header.Set("Authorization", "Bearer "+accessToken)
 	userReq.Header.Set("Accept", "application/json")
 
-	userResp, err := oauthHTTPClient.Do(userReq)
+	userResp, err := OAuthHTTPClient.Do(userReq)
 	if err != nil {
 		log.Printf("OAuth callback: user info fetch error: %v", err)
 		http.Error(w, "Failed to fetch user info", http.StatusInternalServerError)
@@ -261,10 +264,10 @@ func handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("OAuth callback: provider=%s id=%s", provider, providerID)
 
-	avatarURL = validateAvatarURL(avatarURL)
-	user, err := upsertUser(provider, providerID, displayName, avatarURL)
+	avatarURL = ValidateAvatarURL(avatarURL)
+	user, err := store.UpsertUser(provider, providerID, displayName, avatarURL)
 	if err != nil {
-		log.Printf("OAuth callback: upsertUser failed: %v", err)
+		log.Printf("OAuth callback: UpsertUser failed: %v", err)
 		http.Error(w, "Failed to create user", http.StatusInternalServerError)
 		return
 	}
@@ -282,9 +285,9 @@ func handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Printf("OAuth callback: success, setting session cookie for user %d (%s)", user.ID, displayName)
-	logAuthEvent("auth_login", provider, "success", clientIP(r), map[string]interface{}{
-		"user_id":  user.ID,
-		"is_new":   user.IsNew,
+	middleware.LogAuthEvent("auth_login", provider, "success", netutil.ClientIP(r), map[string]interface{}{
+		"user_id": user.ID,
+		"is_new":  user.IsNew,
 	})
 
 	http.SetCookie(w, &http.Cookie{
@@ -307,8 +310,8 @@ func handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 }
 
-func handleAuthMe(w http.ResponseWriter, r *http.Request) {
-	user := getUserFromRequest(r)
+func HandleAuthMe(w http.ResponseWriter, r *http.Request) {
+	user := GetUserFromRequest(r)
 	if user == nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"user":null}`))
@@ -331,10 +334,10 @@ func handleAuthMe(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]interface{}{"user": resp})
 }
 
-func handleAuthLogout(w http.ResponseWriter, r *http.Request) {
-	user := getUserFromRequest(r)
+func HandleAuthLogout(w http.ResponseWriter, r *http.Request) {
+	user := GetUserFromRequest(r)
 	if user != nil {
-		logAuthEvent("auth_logout", user.Provider, "success", clientIP(r), map[string]interface{}{
+		middleware.LogAuthEvent("auth_logout", user.Provider, "success", netutil.ClientIP(r), map[string]interface{}{
 			"user_id": user.ID,
 		})
 	}
@@ -349,7 +352,9 @@ func handleAuthLogout(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func getUserFromRequest(r *http.Request) *User {
+// GetUserFromRequest extracts and validates the session JWT cookie, returning the
+// authenticated user or nil if unauthenticated/invalid.
+func GetUserFromRequest(r *http.Request) *store.User {
 	cookie, err := r.Cookie("session")
 	if err != nil {
 		return nil
@@ -376,7 +381,7 @@ func getUserFromRequest(r *http.Request) *User {
 		return nil
 	}
 
-	user, err := getUserByID(int64(userID))
+	user, err := store.GetUserByID(int64(userID))
 	if err != nil {
 		return nil
 	}
