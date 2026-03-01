@@ -133,9 +133,10 @@ async function signOut() {
 // Leaderboard
 async function loadTopPlayers() {
     try {
-        const resp = await fetch('/api/leaderboard?limit=3');
+        const resp = await fetch('/api/leaderboard?limit=20');
         const data = await resp.json();
-        renderTopPlayers(data.leaderboard);
+        const qualified = (data.leaderboard || []).filter(e => e.games_played >= 5);
+        renderTopPlayers(qualified.slice(0, 3));
     } catch (e) {
         // Silently fail - leaderboard is optional
     }
@@ -169,11 +170,6 @@ function renderTopPlayers(entries) {
         name.className = 'top-player-name';
         name.textContent = entry.display_name;
         div.appendChild(name);
-
-        const avg = document.createElement('span');
-        avg.className = 'top-player-avg';
-        avg.textContent = entry.true_avg.toFixed(2);
-        div.appendChild(avg);
 
         el.appendChild(div);
     });
@@ -213,15 +209,43 @@ function renderLeaderboard(entries) {
         return;
     }
 
+    const qualified = entries.filter(e => e.games_played >= 5);
+    const newcomers = entries.filter(e => e.games_played < 5);
+
+    // Re-number ranks by display position so newcomers don't appear to
+    // outrank qualified players just because they scored well in few games.
+    let pos = 1;
+    qualified.forEach(e => { e.displayRank = pos++; });
+    newcomers.forEach(e => { e.displayRank = pos++; });
+
+    if (qualified.length === 0) {
+        const notice = document.createElement('div');
+        notice.style.cssText = 'text-align: center; color: var(--text-muted); padding: 1rem 0;';
+        notice.textContent = 'No players with 5+ games yet';
+        list.appendChild(notice);
+    } else {
+        renderLbRows(qualified, list, true);
+    }
+
+    if (newcomers.length > 0) {
+        const divider = document.createElement('div');
+        divider.className = 'lb-section-header';
+        divider.textContent = 'Getting Started (under 5 games)';
+        list.appendChild(divider);
+        renderLbRows(newcomers, list, false);
+    }
+}
+
+function renderLbRows(entries, list, showRank) {
     const rankClasses = { 1: 'gold', 2: 'silver', 3: 'bronze' };
 
-    entries.forEach(e => {
+    entries.forEach((e, i) => {
         const row = document.createElement('div');
         row.className = 'lb-row';
 
         const rankDiv = document.createElement('div');
-        rankDiv.className = 'lb-rank ' + (rankClasses[e.rank] || '');
-        rankDiv.textContent = e.rank;
+        rankDiv.className = 'lb-rank' + (showRank ? ' ' + (rankClasses[e.displayRank] || '') : ' lb-rank-none');
+        rankDiv.textContent = e.displayRank;
         row.appendChild(rankDiv);
 
         if (e.avatar_url) {
@@ -241,9 +265,9 @@ function renderLeaderboard(entries) {
         const nameDiv = document.createElement('div');
         nameDiv.className = 'lb-name';
         nameDiv.textContent = e.display_name;
-        if (e.rank <= 3) {
+        if (showRank && e.displayRank <= 3) {
             const trophy = document.createElement('span');
-            trophy.className = 'lb-trophy lb-trophy-' + (rankClasses[e.rank] || '');
+            trophy.className = 'lb-trophy lb-trophy-' + (rankClasses[e.displayRank] || '');
             const ns = 'http://www.w3.org/2000/svg';
             const svg = document.createElementNS(ns, 'svg');
             svg.setAttribute('width', '14');
@@ -266,9 +290,7 @@ function renderLeaderboard(entries) {
 
         const statsDiv = document.createElement('div');
         statsDiv.className = 'lb-stats';
-
         [
-            { value: e.true_avg.toFixed(2), label: 'avg' },
             { value: Math.round(e.win_rate * 100) + '%', label: 'win' },
             { value: e.games_played, label: 'games' }
         ].forEach(s => {

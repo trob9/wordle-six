@@ -8,10 +8,10 @@
 
     <!-- Open Graph / Social Preview -->
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://wordle-six.tomtom.fyi/">
+    <meta property="og:url" content="https://wordle.xxoo.ooo/">
     <meta property="og:title" content="Wordle Six">
     <meta property="og:description" content="Six letters. Six attempts. One word. A refined daily word puzzle.">
-    <meta property="og:image" content="https://wordle-six.tomtom.fyi/og-preview.png">
+    <meta property="og:image" content="https://wordle.xxoo.ooo/og-preview.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
 
@@ -19,7 +19,7 @@
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Wordle Six">
     <meta name="twitter:description" content="Six letters. Six attempts. One word. A refined daily word puzzle.">
-    <meta name="twitter:image" content="https://wordle-six.tomtom.fyi/og-preview.png">
+    <meta name="twitter:image" content="https://wordle.xxoo.ooo/og-preview.png">
 
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -884,12 +884,7 @@
             white-space: nowrap;
         }
 
-        .top-player-avg {
-            font-weight: 600;
-            color: var(--correct);
-        }
-
-        .leaderboard-list {
+.leaderboard-list {
             width: 100%;
         }
 
@@ -949,6 +944,22 @@
             font-weight: 600;
             color: var(--text-primary);
             display: block;
+        }
+
+        .lb-section-header {
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+            padding: 0.85rem 0 0.4rem;
+            margin-top: 0.5rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .lb-rank-none {
+            color: var(--text-muted);
+            font-weight: 400;
         }
 
         .lb-trophy {
@@ -1118,7 +1129,7 @@
                 <h2 class="modal-title">Leaderboard</h2>
                 <button class="close-btn" data-close-modal="leaderboardModal">&times;</button>
             </div>
-            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem;">Ranked by weighted average guesses. Hard mode wins get a 10% bonus.</p>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem;">Ranked by overall performance. Hard mode wins count as a bonus.</p>
             <div class="leaderboard-list" id="leaderboardList">
                 <div style="text-align: center; color: var(--text-muted); padding: 2rem 0;">Loading...</div>
             </div>

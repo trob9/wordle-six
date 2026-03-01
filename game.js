@@ -8,6 +8,103 @@ let gameOver = false;
 let gameState = null;
 let hardMode = false;
 
+// --- Browser fingerprinting ---
+// Collects everything the browser exposes for session correlation.
+// The hash is included in every guess event so anon and logged-in sessions
+// from the same device can be linked even across login boundaries.
+
+async function collectFingerprint() {
+    // Canvas fingerprint: rendering differences reveal GPU/font/OS combination.
+    let canvas_fp = '';
+    try {
+        const c = document.createElement('canvas');
+        c.width = 240; c.height = 50;
+        const ctx = c.getContext('2d');
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillStyle = '#f0f';
+        ctx.fillRect(0, 0, 240, 50);
+        ctx.font = '15px Arial';
+        ctx.fillStyle = '#069';
+        ctx.fillText('Wordle Six \uD83C\uDF10 <canvas>', 2, 20);
+        ctx.font = '11px "Times New Roman"';
+        ctx.fillStyle = 'rgba(102,204,0,0.85)';
+        ctx.fillText('fingerprint \u2764 1234567890', 4, 38);
+        canvas_fp = c.toDataURL().slice(-48);
+    } catch (e) {}
+
+    // WebGL: exposes GPU vendor/renderer string — very stable per device.
+    let webgl_vendor = '', webgl_renderer = '';
+    try {
+        const gl = document.createElement('canvas').getContext('webgl') ||
+                   document.createElement('canvas').getContext('experimental-webgl');
+        if (gl) {
+            const ext = gl.getExtension('WEBGL_debug_renderer_info');
+            if (ext) {
+                webgl_vendor   = gl.getParameter(ext.UNMASKED_VENDOR_WEBGL)   || '';
+                webgl_renderer = gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) || '';
+            } else {
+                webgl_vendor   = gl.getParameter(gl.VENDOR)   || '';
+                webgl_renderer = gl.getParameter(gl.RENDERER) || '';
+            }
+        }
+    } catch (e) {}
+
+    const fp = {
+        // Locale & timezone
+        lang:         navigator.language       || '',
+        langs:        (navigator.languages     || []).join(','),
+        tz:           Intl.DateTimeFormat().resolvedOptions().timeZone || '',
+        tz_offset:    new Date().getTimezoneOffset(),
+        // Screen & display
+        screen_w:     screen.width,
+        screen_h:     screen.height,
+        avail_w:      screen.availWidth,
+        avail_h:      screen.availHeight,
+        color_depth:  screen.colorDepth,
+        dpr:          window.devicePixelRatio || 1,
+        // Hardware hints
+        hw_concurrency: navigator.hardwareConcurrency || 0,
+        device_memory:  navigator.deviceMemory        || 0,
+        // Platform & input
+        platform:     navigator.platform      || '',
+        touch_points: navigator.maxTouchPoints || 0,
+        // Browser settings
+        do_not_track:    navigator.doNotTrack   || '',
+        cookies_enabled: navigator.cookieEnabled,
+        // UA (also present in server-side HTTP headers, useful for cross-check)
+        ua: navigator.userAgent,
+        // Rendering fingerprints
+        canvas_fp,
+        webgl_vendor,
+        webgl_renderer,
+    };
+
+    // A short stable hash over fields that are constant for a given device/browser.
+    // Deliberately excludes anything that changes with window state (avail_w/h, dpr)
+    // or user action, so the hash stays the same across a session even if the
+    // window is resized or moved between monitors.
+    const hashInput = [
+        fp.ua, fp.screen_w, fp.screen_h, fp.color_depth,
+        fp.hw_concurrency, fp.device_memory, fp.tz, fp.platform,
+        fp.touch_points, fp.canvas_fp, fp.webgl_renderer
+    ].join('|');
+    fp.hash = hashInput.split('').reduce((h, ch) => (Math.imul(31, h) + ch.charCodeAt(0)) | 0, 0)
+                       .toString(16).replace('-', 'n');
+
+    return fp;
+}
+
+async function sendFingerprint() {
+    try {
+        const fp = await collectFingerprint();
+        sessionStorage.setItem('fp_hash', fp.hash);
+        fetch('/api/fingerprint', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(fp)
+        }).catch(() => {});
+    } catch (e) {}
+}
 
 // Initialize game
 async function initGame() {
@@ -16,6 +113,7 @@ async function initGame() {
     createBoard();
     attachKeyboard();
     updateStatsDisplay();
+    sendFingerprint(); // fire-and-forget; also stashes fp_hash in sessionStorage
 
     // Check if we need a new game (new day)
     const today = getDateString();
@@ -367,7 +465,8 @@ function saveProgressToServer() {
             gameOver: gameState.gameOver,
             won: gameState.won,
             client_time: new Date().toISOString(),
-            tz_offset: new Date().getTimezoneOffset()
+            tz_offset: new Date().getTimezoneOffset(),
+            fp_hash: sessionStorage.getItem('fp_hash') || ''
         })
     }).then(r => r.json()).then(data => {
         if (data.tz_warning) showTzWarning();
@@ -457,9 +556,11 @@ function updateStats(won, guesses = null) {
 
         // Update streak
         const today = getDateString();
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        const yesterdayStr = yesterday.toISOString().split('T')[0];
+        // Compute yesterday using local date arithmetic (same method as getDateString)
+        // to avoid timezone mismatch with toISOString() which is always UTC.
+        const yd = new Date();
+        yd.setDate(yd.getDate() - 1);
+        const yesterdayStr = `${yd.getFullYear()}-${String(yd.getMonth() + 1).padStart(2, '0')}-${String(yd.getDate()).padStart(2, '0')}`;
 
         if (stats.lastDate === yesterdayStr) {
             stats.currentStreak++;
@@ -551,7 +652,7 @@ function shareResults(button) {
         }).join('');
     }).join('\n');
 
-    const text = `Wordle Six ${guessCount}/${MAX_GUESSES}${hardIndicator}\n\n${emoji}\n\nhttps://wordle-six.tomtom.fyi`;
+    const text = `Wordle Six ${guessCount}/${MAX_GUESSES}${hardIndicator}\n\n${emoji}\n\nhttps://wordle.xxoo.ooo`;
 
     // Only use native share on mobile (touch devices), clipboard everywhere else
     const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;

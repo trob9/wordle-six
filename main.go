@@ -63,14 +63,20 @@ func getLimiter(ip string, rps rate.Limit, burst int) *rate.Limiter {
 }
 
 func clientIP(r *http.Request) string {
-	// Behind Cloudflare/Caddy, real IP is in X-Forwarded-For
+	// CF-Connecting-IP is set by Cloudflare and is the most authoritative source
+	// in this stack (Cloudflare Tunnel → Caddy → wordle-six). Caddy forwards all
+	// incoming headers to the backend, so this header arrives unchanged.
+	if cf := r.Header.Get("CF-Connecting-IP"); cf != "" {
+		return strings.TrimSpace(cf)
+	}
+	// Fall back to X-Forwarded-For (set by intermediate proxies)
 	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
 		if i := strings.IndexByte(xff, ','); i > 0 {
 			return strings.TrimSpace(xff[:i])
 		}
 		return strings.TrimSpace(xff)
 	}
-	// Strip port from RemoteAddr
+	// Last resort: direct connection address (will be Caddy's Docker IP in prod)
 	addr := r.RemoteAddr
 	if i := strings.LastIndex(addr, ":"); i > 0 {
 		return addr[:i]
@@ -123,9 +129,15 @@ func main() {
 	mux.HandleFunc("POST /api/save-progress", rateLimit(30.0/60, 10, requireJSON(limitBody(10*1024, handleSaveProgress))))
 	mux.HandleFunc("GET /api/user-stats", rateLimit(30.0/60, 10, handleGetUserStats))
 	mux.HandleFunc("POST /api/user-stats", rateLimit(10.0/60, 5, requireJSON(limitBody(10*1024, handleSaveUserStats))))
+	mux.HandleFunc("POST /api/fingerprint", rateLimit(10.0/60, 5, requireJSON(limitBody(10*1024, handleFingerprint))))
 	mux.HandleFunc("POST /api/display-name", rateLimit(5.0/60, 3, requireJSON(limitBody(1024, handleUpdateDisplayName))))
 	mux.HandleFunc("POST /api/admin/ban", rateLimit(5.0/60, 3, requireJSON(limitBody(1024, handleBanUser))))
 	mux.HandleFunc("GET /api/admin/users", rateLimit(10.0/60, 5, handleListUsers))
+
+	// Redirect /favicon.ico to the app icon so browsers don't generate 404s
+	mux.HandleFunc("GET /favicon.ico", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/icon-192.png", http.StatusMovedPermanently)
+	})
 
 	// Static files - serve from current directory
 	staticDir := "./static"

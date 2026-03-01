@@ -128,7 +128,7 @@ func handleAuthStart(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteLaxMode,
 	})
 
-	callbackURL := fmt.Sprintf("https://wordle-six.tomtom.fyi/auth/%s/callback", provider)
+	callbackURL := fmt.Sprintf("https://wordle.xxoo.ooo/auth/%s/callback", provider)
 
 	params := url.Values{
 		"client_id":    {cfg.ClientID},
@@ -179,7 +179,7 @@ func handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	callbackURL := fmt.Sprintf("https://wordle-six.tomtom.fyi/auth/%s/callback", provider)
+	callbackURL := fmt.Sprintf("https://wordle.xxoo.ooo/auth/%s/callback", provider)
 
 	// Exchange code for token
 	tokenData := url.Values{
