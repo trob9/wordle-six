@@ -18,6 +18,7 @@ func main() {
 	if err := store.InitDB(); err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
+	auth.Init()
 
 	mux := http.NewServeMux()
 

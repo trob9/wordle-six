@@ -37,6 +37,8 @@ func SetupTestDB(t *testing.T) {
 		t.Fatalf("failed to create views: %v", err)
 	}
 
+	auth.Init()
+
 	t.Cleanup(func() {
 		store.DB.Close()
 	})

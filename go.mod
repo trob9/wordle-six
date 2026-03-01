@@ -7,4 +7,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.34
 )
 
-require golang.org/x/time v0.14.0 // indirect
+require (
+	github.com/trob9/pkg v0.1.0 // indirect
+	golang.org/x/time v0.14.0 // indirect
+)
