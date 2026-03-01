@@ -18,7 +18,7 @@ var Handler *pkgauth.Handler
 func Init() {
 	Handler = pkgauth.New(pkgauth.Config{
 		JWTSecret:   os.Getenv("JWT_SECRET"),
-		CallbackURL: "https://wordle-six.tomtom.fyi/auth/{provider}/callback",
+		CallbackURL: os.Getenv("OAUTH_CALLBACK_URL"),
 		Providers: []pkgauth.Provider{
 			pkgauth.GitHub(os.Getenv("GITHUB_CLIENT_ID"), os.Getenv("GITHUB_CLIENT_SECRET")),
 			pkgauth.Discord(os.Getenv("DISCORD_CLIENT_ID"), os.Getenv("DISCORD_CLIENT_SECRET")),
