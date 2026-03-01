@@ -17,10 +17,7 @@ RUN apk add --no-cache ca-certificates wget su-exec && \
 WORKDIR /app
 COPY --from=builder /app/wordle-six .
 
-# Copy static frontend files
-COPY index.html terms.html privacy.html manifest.json ./static/
-COPY *.js ./static/
-COPY icon.svg icon-192.png icon-512.png og-preview.png ./static/
+COPY static/ ./static/
 COPY entrypoint.sh .
 
 RUN chmod +x entrypoint.sh && mkdir -p /data && chown -R appuser:appuser /app /data
