@@ -1,4 +1,4 @@
-FROM golang:1.25-alpine AS builder
+FROM golang:1.27-alpine AS builder
 
 RUN apk add --no-cache gcc musl-dev
 
@@ -9,7 +9,7 @@ RUN go mod download
 COPY *.go ./
 RUN CGO_ENABLED=1 go build -o wordle-six .
 
-FROM alpine:3.21
+FROM alpine:3.24
 
 RUN apk add --no-cache ca-certificates wget su-exec && \
     addgroup -S appuser && adduser -S appuser -G appuser
